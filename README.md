@@ -7,9 +7,31 @@ a referral note. **Decision support, not diagnosis: a clinician always decides.*
 
 Built for the Nebius x NVIDIA Global AI Hackathon. Full design: [docs/SPEC.md](docs/SPEC.md).
 
-> Status: week 1. Config, the Token Factory client (cache, cost logging, spend cap), the
-> deterministic danger-sign rules, and the guideline ingest/retrieval code are in place; the
-> LangGraph pipeline, Tavily outbreak tool and PWA come next.
+> Status: week 2. The full LangGraph pipeline runs end to end from the CLI and `POST /triage`.
+> Tavily is mocked until credits arrive; the guideline index and dose table await confirmed
+> sources. The PWA comes next.
+
+## Pipeline
+
+```
+intake -> rules_pre -> retrieve -> outbreak -> reason -> rules_post -> compose
+Nemotron  Python     guideline   Tavily +    Nemotron  Python       Nemotron
+fast      rules      index       fast model  reason    rules        mid
+(think off)                      (think off) (think on)             (think off)
+```
+
+- **intake** normalises English/Pidgin text into a `PatientCase`; if age, fever duration or
+  RDT result is missing (and there are no danger signs) it returns up to 2 follow-up
+  questions. The client resubmits the same text with `answers` to resume; nothing is stored.
+- **rules_pre / rules_post** detect danger signs deterministically and set a triage floor the
+  model can never lower; rules_post also strips any model-written doses, attaches doses from
+  the weight-band table (currently an UNVERIFIED stub), drops citations that don't resolve,
+  and fails safe to "Refer now" if a model step failed.
+- **outbreak** searches trusted domains (NCDC, WHO, ReliefWeb) for the patient's state,
+  extracts dated, sourced signals, and caches per state per day. Without a Tavily key it
+  reports "outbreak data unavailable" in the result instead of guessing.
+- Every result carries a **decision trace**: model, reasoning on/off, tokens, latency and
+  cost per step.
 
 ## How we use NVIDIA Nemotron + Nebius Token Factory
 
@@ -63,12 +85,23 @@ Other scripts:
 |---|---|---|
 | `uv run python -m scripts.list_models --write-prices` | Writes a `MODEL_PRICES` example into `.env.example` | No |
 | `uv run python -m scripts.spend [--reset]` | Shows (or resets) cumulative live spend vs. the cap | No |
+| `uv run python -m backend.app.cli "case text" --state Ondo` | Runs the full pipeline and prints the result and decision trace | ~$0.003 per case |
+| `uv run python -m scripts.build_fake_index` | Builds a tiny labelled FAKE index in `data/index_fake/` for dev | No |
 | `uv run python -m scripts.smoke_fast [--model ID] [--reasoning default\|kwargs-off\|no-think]` | One live call parsing a synthetic case; prints the raw response shape | ~$0.0001–0.0004 |
 | `uv run python -m backend.app.rag.ingest --dry-run` | Chunks PDFs in `data/raw/` | No |
 | `uv run python -m backend.app.rag.ingest` | Chunks + embeds into `data/index/` | Yes (embeddings) |
 
 Guideline PDFs are listed in [data/sources.yaml](data/sources.yaml) with licence notes and are
 not committed; download them into `data/raw/`.
+
+Demo without Tavily credits or real guideline PDFs (synthetic data, clearly flagged in output):
+
+```bash
+uv run python -m scripts.build_fake_index
+uv run python -m backend.app.cli "Adult man 35 years, fever 5 days, RDT negative, took coartem \
+  for 3 days but no improvement" --state Ondo \
+  --index data/index_fake --mock-outbreak data/mock/outbreak_ondo_lassa.json
+```
 
 `uv run pytest -m live` runs opt-in tests against real APIs (spends credits).
 

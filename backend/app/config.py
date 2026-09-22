@@ -54,6 +54,13 @@ class Settings(BaseSettings):
     max_spend_usd: float = 0.50
     log_level: str = "INFO"
 
+    # Guideline index built by rag/ingest.py (or scripts/build_fake_index.py for dev).
+    index_dir: Path = Path("data/index")
+    retrieve_top_k: int = 6
+    # Tavily. Without a key the outbreak step reports "outbreak data unavailable".
+    # OUTBREAK_MOCK_FILE replays canned search results instead (tests, demos before credits).
+    outbreak_mock_file: Path | None = None
+
     @property
     def spend_file(self) -> Path:
         return self.cache_dir / "spend.json"

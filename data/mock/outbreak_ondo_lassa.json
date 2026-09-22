@@ -1,0 +1,23 @@
+{
+  "_note": "MOCK / SYNTHETIC search results for tests and demos before Tavily credits arrive. Not real surveillance data. URLs are fake paths on trusted domains so the domain filter is exercised.",
+  "results": [
+    {
+      "title": "MOCK TEST DATA - Lassa fever situation report, epidemiological week 37, 2026",
+      "url": "https://ncdc.gov.ng/diseases/sitreps/MOCK-lassa-2026-w37",
+      "published_date": "2026-09-18",
+      "content": "MOCK / SYNTHETIC TEST DATA. Lassa fever situation report, week 37 2026. New confirmed Lassa fever cases were reported this week in Ondo State, which remains among the states with active transmission. Health workers are reminded to maintain a high index of suspicion for patients with fever not responding to antimalarials and to apply standard infection prevention and control precautions."
+    },
+    {
+      "title": "MOCK TEST DATA - Cholera update, Bauchi State",
+      "url": "https://reliefweb.int/report/nigeria/MOCK-cholera-bauchi-2026",
+      "published_date": "2026-09-10",
+      "content": "MOCK / SYNTHETIC TEST DATA. Suspected cholera cases continue to be reported in Bauchi State as of 10 September 2026, with response activities ongoing."
+    },
+    {
+      "title": "MOCK TEST DATA - Meningitis preparedness note (undated)",
+      "url": "https://www.who.int/MOCK-meningitis-note",
+      "published_date": null,
+      "content": "MOCK / SYNTHETIC TEST DATA. Undated note: meningitis cases were mentioned in Kebbi State. No report date is given."
+    }
+  ]
+}
