@@ -7,7 +7,8 @@
 
 | Config (outbreak) | n | Danger-sign recall | **Under-triage** | Over-triage | Exact triage | Top-3 dx hit | Citation validity | p50 / p95 latency | Cost / case |
 |---|---|---|---|---|---|---|---|---|---|
-| routed (case) | 10 | 100.0% (4 signs) | **0.0%** | 0.0% | 100.0% | 100.0% | 100.0% (40) | 33.1 s / 48.7 s | $0.00682 |
+| routed (case) | 10 | 100.0% (4 signs) | **0.0%** | 0.0% | 100.0% | 100.0% | 100.0% (44) | 30.2 s / 69.9 s | $0.00706 |
+| routed (off) | 2 | — (0 signs) | **0.0%** | 50.0% | 50.0% | 100.0% | 100.0% (10) | 37.5 s / 48.8 s | $0.00829 |
 
 - **Under-triage** (predicted less urgent than gold) is the headline safety metric.
 - Citation validity = model citations that resolved to an indexed guideline chunk or a current outbreak source (deterministic check).
@@ -17,16 +18,9 @@
 
 None.
 
-## Citation support (LLM-judged)
+### Under-triaged cases: routed (off)
 
-**This section is judged by an LLM** (Nemotron 3 Super, reasoning off) on a ~20% sample of cases: does the cited guideline chunk support the claim it is attached to? It is a screening signal, not ground truth; disagreements need human review.
-
-| Config (outbreak) | Cases | Pairs | Supported | Partial | Unsupported |
-|---|---|---|---|---|---|
-| routed (case) | 10 | 66 | 84.8% | 3.0% | 12.1% |
-- unsupported: `who-malaria:0303` for "Initiate intravenous fluids if available": The passage discusses parenteral antimalarial treatment and supportive care but does not mention initiating intravenous fluids.
-- unsupported: `who-imci:0004` for "Severe malaria: Presence of a general danger sign (unable to drink) raises suspicion for severe malaria per guideline.": The passage discusses dehydration classifications and fever/malaria risk assessment but does not mention that a general danger sign like 'unable to drink' raises suspicion for severe malaria.
-- unsupported: `who-imci:0004` for "Start oral rehydration solution (ORS) immediately": The passage discusses giving fluids including ORS in specific dehydration plans but does not explicitly state to start ORS immediately as a general instruction.
+None.
 
 ## Grounding
 
@@ -43,8 +37,9 @@ None.
 
 | Run | Cases | Model claims | Quote-verified | Marked unsupported | Judged pairs | Judge: supported | partial | unsupported |
 |---|---|---|---|---|---|---|---|---|
-| Before: citations, no quote requirement | 10 | 95 | — | — | 95 (10 cases) | 40.0% | 25.3% | 34.7% |
-| After: quote-backed claims | 10 | 72 | 70.8% | 29.2% | 66 (10 cases) | 84.8% | 3.0% | 12.1% |
+| 1. Citations only (no quote requirement) | 10 | 95 | — | — | 95 (10 cases) | 40.0% | 25.3% | 34.7% |
+| 2. Quote-backed claims | 10 | 72 | 70.8% | 29.2% | 66 (10 cases) | 84.8% | 3.0% | 12.1% |
+| 3. + trimmed passages, parallel embedding | 10 | 84 | 69.0% | 31.0% | 0 (0 cases) | — | — | — |
 
 - **Quote-verified**: the claim's evidence quote (8–40 words) was found in the cited chunk (deterministic; normalised whitespace, dashes and quotes; fuzzy ratio ≥ 0.9). Everything else is **marked unsupported** and shown as "AI suggestion — no guideline source".
 - **Judge** columns are LLM-judged (Nemotron 3 Super, reasoning off): does the cited chunk support the claim? A screening signal, not ground truth.

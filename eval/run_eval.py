@@ -209,6 +209,24 @@ def summarise(
         "warnings": result.warnings,
         "latency_ms": round(model_ms, 1),
         "wall_ms": round(wall_ms, 1),
+        "reason_fallback": any("fallback after truncation" in (s.note or "") for s in steps),
+        "reason_step": next(
+            (
+                {
+                    "model": s.model,
+                    "reasoning": s.reasoning,
+                    "calls": s.calls,
+                    "prompt_tokens": s.prompt_tokens,
+                    "completion_tokens": s.completion_tokens,
+                    "reasoning_tokens": s.reasoning_tokens,
+                    "latency_ms": s.model_latency_ms if s.cached else s.latency_ms,
+                    "cost_usd": s.cost_usd,
+                }
+                for s in steps
+                if s.step == "reason"
+            ),
+            None,
+        ),
         "cost_usd": result.decision_trace.total_cost_usd,
         "tokens": result.decision_trace.total_tokens,
         "cached_steps": sum(1 for s in steps if s.cached),
@@ -329,10 +347,13 @@ def main() -> int:
         "--judge-fraction", type=float, default=0.2, help="share of cases to judge (1.0 = all)"
     )
     parser.add_argument("--yes", action="store_true", help="don't ask before an expensive run")
+    parser.add_argument(
+        "--no-cache", action="store_true", help="live calls only (for honest latency numbers)"
+    )
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
 
-    settings = get_settings().model_copy(update={"cache_enabled": True})
+    settings = get_settings().model_copy(update={"cache_enabled": not args.no_cache})
     out = args.out or RESULTS / f"{args.config}__{args.outbreak}.jsonl"
     out.parent.mkdir(parents=True, exist_ok=True)
     if args.judge_only:

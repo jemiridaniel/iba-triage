@@ -311,7 +311,7 @@ def retrieval_summary(results_dir: Path) -> list[tuple[str, int, dict]]:
     return out
 
 
-def render_grounding(before: dict | None, after: dict | None, retrieval: list) -> list[str]:
+def render_grounding(stages: list[tuple[str, dict]], retrieval: list) -> list[str]:
     lines = ["## Grounding", ""]
     if retrieval:
         lines += [
@@ -336,10 +336,7 @@ def render_grounding(before: dict | None, after: dict | None, retrieval: list) -
         "| Run | Cases | Model claims | Quote-verified | Marked unsupported | Judged pairs | Judge: supported | partial | unsupported |",
         "|---|---|---|---|---|---|---|---|---|",
     ]
-    for label, g in (
-        ("Before: citations, no quote requirement", before),
-        ("After: quote-backed claims", after),
-    ):
+    for label, g in stages:
         if g:
             lines.append(
                 f"| {label} | {g['cases']} | {g['claims']} | {fmt(g['verified_pct'], '%')} | {fmt(g['marked_pct'], '%')} | "
@@ -356,8 +353,9 @@ def render_grounding(before: dict | None, after: dict | None, retrieval: list) -
         "per reason or action; patient facts are excluded (they need no guideline source).",
         "",
     ]
-    if after and after["verified_judged"]:
-        v = after["verified_judged"]
+    judged_stage = next((g for _, g in reversed(stages) if g and g["verified_judged"]), None)
+    if judged_stage:
+        v = judged_stage["verified_judged"]
         lines.append(
             f"Quote-verified claims only (n={len(v)}): judge says supported "
             f"{pct(sum(j['verdict'] == 'supported' for j in v), len(v))}%, partial "
@@ -493,13 +491,17 @@ def main() -> int:
         j = p.with_suffix(".judge.jsonl")
         return load([j]) if j.exists() else []
 
-    before_case, after_case = BEFORE / "routed__case.jsonl", RESULTS / "routed__case.jsonl"
-    before = after = None
-    if before_case.exists():
-        before = grounding_stats(regold(load([before_case])), judge_rows(before_case))
-    if after_case.exists():
-        after = grounding_stats(regold(load([after_case])), judge_rows(after_case))
-    grounding = render_grounding(before, after, retrieval_summary(RESULTS))
+    stage_files = [
+        ("1. Citations only (no quote requirement)", BEFORE / "routed__case.jsonl"),
+        ("2. Quote-backed claims", RESULTS / "grounding" / "routed__case.jsonl"),
+        ("3. + trimmed passages, parallel embedding", RESULTS / "routed__case.jsonl"),
+    ]
+    stages = [
+        (label, grounding_stats(regold(load([p])), judge_rows(p)))
+        for label, p in stage_files
+        if p.exists()
+    ]
+    grounding = render_grounding(stages, retrieval_summary(RESULTS))
     report = render(groups, lift, judge, images, grounding)
     (args.out / "report.md").write_text(report, encoding="utf-8")
     print(report)

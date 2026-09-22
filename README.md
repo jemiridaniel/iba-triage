@@ -126,6 +126,8 @@ Other scripts:
 |---|---|---|
 | `uv run python -m scripts.list_models --write-prices` | Writes a `MODEL_PRICES` example into `.env.example` | No |
 | `uv run python -m scripts.spend [--reset]` | Shows (or resets) cumulative live spend vs. the cap | No |
+| `uv run python -m scripts.demo_check --repeat 3` | Runs the 3 demo cases against a running server; fails on any incomplete or wrong-level result | ~$0.007 per case |
+| `uv run python -m scripts.probe_reasoning_budget` | Tests whether Token Factory can cap Nemotron reasoning (it can't) | ~$0.02 |
 | `uv run python -m backend.app.cli "case text" --state Ondo` | Runs the full pipeline and prints the result and decision trace | ~$0.003 per case |
 | `uv run python -m scripts.fetch_sources` | Downloads confirmed guideline PDFs into `data/raw/` | No |
 | `uv run python -m scripts.build_fake_index` | Builds a tiny labelled FAKE index in `data/index_fake/` for dev | No |

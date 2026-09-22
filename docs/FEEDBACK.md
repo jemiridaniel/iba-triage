@@ -28,6 +28,8 @@ Raw responses are saved in [tests/fixtures/nemotron_responses.json](../tests/fix
 | F7 | Catalogue | Ultra and Super report `per_request_limits` of `1e10` | Low |
 | F8 | Embeddings | Embedding latency is high and variable (0.4–7.3 s for one short query) | Medium: in the critical path |
 | F9 | Catalogue | No NVIDIA embedding or reranking model | Medium for NVIDIA-only builds |
+| F10 | Nemotron / API | No way to cap or budget reasoning tokens | **High**: truncation breaks structured output |
+| F11 | Serving | Generation throughput varies 3x between identical calls | Medium: p95 latency unpredictable |
 
 ---
 
@@ -210,6 +212,57 @@ run on NVIDIA. RAG agents normally need both an embedder and a reranker.
 
 **Suggestion.** Serve an NVIDIA retrieval embedding model and reranker alongside Nemotron.
 
+## F10. No reasoning budget or effort control
+
+**Observed.** Our reasoning step hit `finish_reason: "length"` at 8,192 max tokens on a real
+demo case (7,021 of them reasoning), so the whole assessment failed safe to "Refer — could not
+complete". Looking for a cap, we sent the same prompt to Super with eight plausible options
+(`scripts/probe_reasoning_budget.py`), asking for a 64-token budget:
+
+| Option | Reasoning tokens |
+|---|---|
+| none (baseline) | 1,904 |
+| `chat_template_kwargs: {reasoning_budget: 64}` | 1,902 |
+| `chat_template_kwargs: {thinking_budget: 64}` | 3,401 |
+| `chat_template_kwargs: {reasoning_effort: "low"}` | 649 (**wrong answer**) |
+| `reasoning_effort: "low"` (top level) | 1,116 |
+| `reasoning: {effort: "low"}` | 2,573 |
+| `max_thinking_tokens: 64` | 1,904 |
+| `thinking: {type: "enabled", budget_tokens: 64}` | 1,904 |
+
+No option enforces a budget, and none is rejected either: unknown fields are silently
+accepted, so there is no way to tell "not supported" from "ignored". The only option that
+shortened reasoning also produced a wrong answer, and run-to-run variance (1,904 vs 2,573 vs
+3,401 tokens for the same prompt at temperature 0) is large enough that a single sample proves
+nothing.
+
+**Impact.** With structured output, long reasoning eats the token budget and the answer is
+truncated, which for us means a failed assessment. We now allow 16,384 tokens for that step
+and retry with reasoning off if it still truncates; both cost money and latency.
+
+**Suggestions.** Support a reasoning budget (`reasoning: {max_tokens: N}`) or a documented
+effort level, and reject unknown request fields with a 400 instead of ignoring them.
+
+## F11. Generation throughput varies about 3x between identical calls
+
+**Observed.** Same model (Super), same pipeline step, similar token counts, minutes apart:
+
+| Case | Completion tokens | Latency | Throughput |
+|---|---|---|---|
+| la-01 | 4,147 | 18.9 s | 219 tok/s |
+| um-01 | 3,785 | 15.9 s | 238 tok/s |
+| pd-01 | 6,907 | 91.6 s | 75 tok/s |
+| sm-02 (eval) | ~4,000 | 83.4 s | ~48 tok/s |
+
+Two of twelve calls took 4-5x longer than their token count predicts. Nothing in the response
+distinguishes them (`finish_reason: "stop"`, no rate-limit headers, no 429).
+
+**Impact.** Our p95 latency (69.9 s over 10 cases) is set by these outliers, not by our
+pipeline. For a point-of-care app that is the number a user feels.
+
+**Suggestions.** Publish expected throughput per model, and expose queue/wait time in the
+response or headers so clients can tell a slow queue from a slow prompt.
+
 ---
 
 ## What worked well
@@ -258,6 +311,18 @@ step: 3,162 prompt / 2,451 completion tokens (1,821 reasoning), 11.5 s, $0.0032.
 
 Super's reasoning step was 8.6–13.4 s of each case. Streaming the rule result first means the
 health worker sees a danger-sign referral within ~1.5 s instead of ~15 s.
+
+**2026-09-22, Ultra vs Super** (3 identical cases, reasoning on, uncached; routed pipeline):
+
+| | Super | Ultra |
+|---|---|---|
+| Wall-clock per case | 22 s, 22 s, 101 s | 12 s, 15 s, 20 s (run 1); 15 s, 16 s (run 2) |
+| Reason step tokens (prompt / completion / reasoning) | 4.2k / 4.1k / 3.2k | 4.2k / 4.6k / 3.3k |
+| Cost per case | $0.005-0.008 | $0.013-0.027 |
+| Failures | 0 of 13 runs today | 1 of 5: reason output failed schema validation twice (fail-safe "Refer") |
+
+Ultra is faster per token and answered in fewer, longer reasoning steps; it also produced the
+only structured-output failure of the day (see F5: no JSON mode).
 
 ## Still to evaluate
 
