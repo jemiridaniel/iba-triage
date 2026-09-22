@@ -64,7 +64,7 @@ CRITICAL_FIELDS = ("age_years", "fever_days", "rdt_result")
 # Order in which missing information is asked about (at most MAX_QUESTIONS per round).
 QUESTION_ORDER = ("fever_days", "rdt_result", "treatment_response", "age_years")
 MAX_QUESTIONS = 2
-INCOMPLETE_RATIONALE = "Refer: Iba could not complete the assessment."
+INCOMPLETE_RATIONALE = "Refer: Ibà could not complete the assessment."
 ASSESSMENT_UNAVAILABLE = "Detailed assessment unavailable — safety rules applied. Refer."
 _PIDGIN_MARKERS = re.compile(r"\b(pikin|dey|don|wetin|abeg|dem|wahala|na im|e no)\b", re.I)
 
@@ -603,7 +603,7 @@ def _resolve_citation(ref: str, deps: Deps, signals: list) -> Citation | None:
 
 _DISCLAIMER = {
     "en": "Decision support only, not a diagnosis. A qualified health worker must confirm.",
-    "pcm": "Iba na helper only, e no be diagnosis. Qualified health worker must confirm am.",
+    "pcm": "Ibà na helper only, e no be diagnosis. Qualified health worker must confirm am.",
 }
 
 
@@ -641,7 +641,7 @@ def compose(state: TriageState, deps: Deps) -> dict[str, Any]:
     summary, _ = strip_doses(out.summary)
     note, _ = strip_doses(out.referral_note)
     label = TRIAGE_LABELS[post.triage_level]
-    header = f"IBA TRIAGE NOTE · {date.today():%d %b %Y} · {label.upper()}"
+    header = f"IBÀ TRIAGE NOTE · {date.today():%d %b %Y} · {label.upper()}"
     if case.state:
         header += f" · {case.state}"
     lines = [header, note.rstrip()]

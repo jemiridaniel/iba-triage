@@ -374,7 +374,7 @@ def render(
     grounding: list[str] | None = None,
 ) -> str:
     lines = [
-        "# Iba eval report",
+        "# Ibà eval report",
         "",
         "> Synthetic vignettes; gold labels **not yet clinician-reviewed**. Treat these numbers as",
         "> a development check, not a clinical validation.",

@@ -74,7 +74,7 @@ def stream(client: httpx.Client, url: str, case: dict) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Check the demo cases against a running Iba server."
+        description="Check the demo cases against a running Ibà server."
     )
     parser.add_argument("--url", default="http://localhost:8000")
     parser.add_argument("--repeat", type=int, default=1)

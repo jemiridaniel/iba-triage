@@ -4,13 +4,88 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#115e59" />
-    <meta name="description" content="Iba: fever-triage decision support for primary health care workers. Not a diagnosis." />
+    <meta name="description" content="Ibà: fever-triage decision support for primary health workers. Not a diagnosis." />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
-    <title>Iba · Fever Triage Support</title>
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Ibà" />
+    <link rel="apple-touch-startup-image" href="/splash/launch-1290x2796.png"
+          media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/launch-1179x2556.png"
+          media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/launch-1284x2778.png"
+          media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/launch-1170x2532.png"
+          media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/launch-1125x2436.png"
+          media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/launch-828x1792.png"
+          media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/launch-750x1334.png"
+          media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <title>Ibà · Fever Triage</title>
+    <style>
+      /* Launch screen: inline, no external fonts or images, so it paints before the bundle. */
+      #launch {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        background: #115e59;
+        color: #fff;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+        text-align: center;
+        padding: 24px;
+        opacity: 1;
+        transition: opacity 250ms ease-out;
+      }
+      #launch.iba-hide { opacity: 0; }
+      #launch svg { width: 88px; height: 88px; }
+      #launch .iba-word { font-size: 40px; font-weight: 800; letter-spacing: -0.02em; }
+      #launch .iba-tag { font-size: 15px; line-height: 1.4; max-width: 18rem; opacity: 0.85; }
+      #launch .iba-dots { display: flex; gap: 6px; margin-top: 6px; }
+      #launch .iba-dots i {
+        width: 8px; height: 8px; border-radius: 9999px; background: #fff; opacity: 0.45;
+        animation: iba-pulse 1.1s ease-in-out infinite;
+      }
+      #launch .iba-dots i:nth-child(2) { animation-delay: 0.15s; }
+      #launch .iba-dots i:nth-child(3) { animation-delay: 0.3s; }
+      @keyframes iba-pulse { 50% { opacity: 1; transform: translateY(-3px); } }
+      @media (prefers-color-scheme: dark) {
+        #launch { background: #0b3d3a; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #launch { transition: none; }
+        #launch .iba-dots i { animation: none; opacity: 0.7; }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <div id="launch" role="status" aria-live="polite" aria-label="Ibà is starting">
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <rect width="64" height="64" rx="14" fill="#0d4e4a" />
+        <circle cx="32" cy="11.9" r="4.9" fill="#fff" />
+        <rect x="27.1" y="20.8" width="9.8" height="21.6" rx="4.9" fill="#fff" />
+      </svg>
+      <div class="iba-word">Ibà</div>
+      <div class="iba-tag">Fever triage for primary health workers</div>
+      <div class="iba-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+    </div>
+    <script>
+      // Safety net: never let the launch screen block the app, even if the bundle fails.
+      window.__ibaLaunchTimer = setTimeout(function () {
+        var el = document.getElementById("launch");
+        if (el) el.remove();
+      }, 4000);
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

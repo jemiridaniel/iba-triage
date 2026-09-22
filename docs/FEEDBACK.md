@@ -1,6 +1,6 @@
 # Builder feedback: Nebius Token Factory, Nemotron, Serverless
 
-Feedback from building **Iba**, a fever-triage copilot for primary health care workers in
+Feedback from building **Ibà**, a fever-triage copilot for primary health care workers in
 Nigeria (Nebius x NVIDIA Global AI Hackathon, Best Apps and Agents). Every item comes from
 running code in this repo. Each has a reproduction, the impact on a real app, the workaround
 we shipped, and a concrete suggestion. We add to this file as we go.

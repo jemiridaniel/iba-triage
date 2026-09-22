@@ -28,7 +28,7 @@ def print_result(r: TriageResult, colour: bool) -> None:
         return f"{code}{text}\033[0m" if colour else text
 
     if r.status == "needs_info":
-        print("Iba needs more information. Re-run with --answer <id>=<answer>:")
+        print("Ibà needs more information. Re-run with --answer <id>=<answer>:")
         for q in r.questions:
             print(f"  {q.id}: {q.text}")
         if r.danger_signs:
@@ -85,7 +85,7 @@ def print_result(r: TriageResult, colour: bool) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Iba fever triage (decision support, not diagnosis)."
+        description="Ibà fever triage (decision support, not diagnosis)."
     )
     parser.add_argument("text", help="case description (English or Pidgin); synthetic cases only")
     parser.add_argument("--state", help="Nigerian state, e.g. Ondo")

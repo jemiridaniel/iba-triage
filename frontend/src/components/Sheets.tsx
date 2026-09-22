@@ -40,7 +40,7 @@ export function CitationSheet({ citation, quote, onClose }: { citation: Citation
                   <blockquote className="border-l-4 border-slate-300 bg-slate-50 p-3 text-slate-800">{citation.excerpt}</blockquote>
                 )
               )}
-              <p className="text-xs text-slate-500">From the indexed guideline passage Iba retrieved. Check the full document for context.</p>
+              <p className="text-xs text-slate-500">From the indexed guideline passage Ibà retrieved. Check the full document for context.</p>
             </>
           ) : (
             <>
@@ -86,7 +86,7 @@ export function TraceSheet({ steps, wallMs, open, onClose }: { steps: TraceStep[
   const total = wallMs ?? sum; // some steps run in parallel
   const cost = steps.reduce((a, s) => a + (s.cost_usd ?? 0), 0);
   return (
-    <BottomSheet title="How Iba decided" open={open} onClose={onClose}>
+    <BottomSheet title="How Ibà decided" open={open} onClose={onClose}>
       <ol className="space-y-2">
         {steps.map((s) => {
           const ms = stepMs(s);

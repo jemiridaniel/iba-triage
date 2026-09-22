@@ -327,7 +327,7 @@ def run_judge(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run the Iba eval over synthetic vignettes.")
+    parser = argparse.ArgumentParser(description="Run the Ibà eval over synthetic vignettes.")
     parser.add_argument(
         "--config", choices=["routed", "reason-only", "fast-only"], default="routed"
     )

@@ -240,7 +240,7 @@ def stream_triage(
         logger.error("spend limit reached during stream")
         yield (
             "error",
-            {"fatal": True, "message": "Iba is temporarily unavailable (spending limit reached)."},
+            {"fatal": True, "message": "Ibà is temporarily unavailable (spending limit reached)."},
         )
     except Exception as exc:
         logger.exception("pipeline error during stream")

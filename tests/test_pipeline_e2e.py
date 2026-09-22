@@ -325,7 +325,7 @@ def test_reason_failure_fails_safe_to_refer(tmp_path: Path) -> None:
     r = run_triage(TriageRequest(text=MALARIA_TEXT), deps)
     assert r.status == "incomplete"
     assert r.triage_level == TriageLevel.REFER_NOW
-    assert r.triage_rationale == "Refer: Iba could not complete the assessment."
+    assert r.triage_rationale == "Refer: Ibà could not complete the assessment."
     assert r.doses == []
     reason_step = next(s for s in r.decision_trace.steps if s.step == "reason")
     assert "LLMParseError" in reason_step.note
@@ -354,7 +354,7 @@ def test_compose_failure_uses_template(tmp_path: Path) -> None:
     )
     r = run_triage(TriageRequest(text=MALARIA_TEXT), deps)
     assert r.status == "complete"
-    assert r.referral_note.startswith("IBA TRIAGE NOTE")
+    assert r.referral_note.startswith("IBÀ TRIAGE NOTE")
     assert "\nTriage: Treat & monitor" in r.referral_note
     assert any("template" in w for w in r.warnings)
 

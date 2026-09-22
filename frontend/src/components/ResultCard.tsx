@@ -222,7 +222,7 @@ function Outbreak({ ctx, index, onOpen, state }: { ctx: OutbreakContext; index: 
           ))}
         </div>
       ) : (
-        <p className="text-xs text-slate-500">No endemic diseases listed for {state || "this state"} in Iba's baseline.</p>
+        <p className="text-xs text-slate-500">No endemic diseases listed for {state || "this state"} in Ibà's baseline.</p>
       )}
     </div>
   );
@@ -349,7 +349,7 @@ function ReferralNote({ note }: { note: string }) {
           WhatsApp
         </a>
         {canShare && (
-          <button onClick={() => navigator.share({ title: "Iba triage note", text: note }).catch(() => {})}
+          <button onClick={() => navigator.share({ title: "Ibà triage note", text: note }).catch(() => {})}
                   className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 font-semibold active:scale-95 transition">
             Share…
           </button>
@@ -411,7 +411,7 @@ export function ResultCard({ run, state, onOpenTrace, onOpenCitation }: {
       {run.trace.length > 0 && (
         <button onClick={onOpenTrace}
                 className="flex w-full items-center justify-between border-t border-slate-200 px-4 py-3 text-left text-sm font-semibold text-teal-800">
-          <span>How Iba decided</span>
+          <span>How Ibà decided</span>
           <span className="text-xs font-normal text-slate-500">
             {run.trace.length} steps · ${run.trace.reduce((a, s) => a + (s.cost_usd ?? 0), 0).toFixed(4)} ›
           </span>

@@ -18,7 +18,7 @@ from backend.app.schemas import TriageResult
 settings = get_settings()
 logging.basicConfig(level=settings.log_level)
 
-app = FastAPI(title="Iba", description="Fever-triage decision support. Not a diagnosis.")
+app = FastAPI(title="Ibà", description="Fever-triage decision support. Not a diagnosis.")
 
 
 @lru_cache
@@ -45,7 +45,7 @@ def triage(request: TriageRequest) -> TriageResult:
         # A budget stop is an operator problem, never a triage answer.
         logging.getLogger("iba.api").error("spend limit: %s", exc)
         raise HTTPException(
-            status_code=503, detail="Iba is temporarily unavailable (spending limit reached)."
+            status_code=503, detail="Ibà is temporarily unavailable (spending limit reached)."
         ) from exc
     except Exception as exc:  # never a silent green: fail safe to Refer now
         logging.getLogger("iba.api").exception("pipeline error")

@@ -99,7 +99,7 @@ export default function App() {
       );
     } catch (e) {
       if ((e as Error).name !== "AbortError") {
-        update((r) => ({ ...r, error: { fatal: true, message: navigator.onLine ? (e as Error).message : "No internet connection. Iba needs the network to assess a case." } }));
+        update((r) => ({ ...r, error: { fatal: true, message: navigator.onLine ? (e as Error).message : "No internet connection. Ibà needs the network to assess a case." } }));
       }
     } finally {
       setBusy(false);
@@ -121,20 +121,46 @@ export default function App() {
   return (
     <div className="mx-auto flex min-h-dvh max-w-xl flex-col bg-slate-100 text-slate-900">
       <header className="sticky top-0 z-20 flex items-center gap-2 bg-teal-800 px-3 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top))] text-white shadow">
-        <button onClick={() => go("/")} className="min-h-11 text-2xl font-extrabold tracking-tight" aria-label="Iba home">
-          Iba
+        <button onClick={() => go("/")} className="min-h-11 text-2xl font-extrabold tracking-tight" aria-label="Ibà home">
+          Ibà
         </button>
-        <label className="ml-auto flex items-center gap-1 text-sm">
-          <span className="sr-only sm:not-sr-only">State</span>
-          <select
-            value={region}
-            onChange={(e) => pickRegion(e.target.value)}
-            className="min-h-11 max-w-[11rem] rounded-lg bg-white px-2 text-[15px] text-slate-900"
-            aria-label="Patient's state"
-          >
-            <option value="">Select state…</option>
-            {NIGERIAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+        <label className="ml-auto flex items-center gap-2 text-white">
+          <span className="text-sm font-medium opacity-90">State</span>
+          <div className="relative">
+            {/* text-base (16px) or larger: anything smaller makes iOS Safari zoom the page
+                when the picker is tapped. Option colours only apply on desktop; phones open
+                their own native picker. */}
+            <select
+              value={region}
+              onChange={(e) => pickRegion(e.target.value)}
+              aria-label="Patient's state"
+              className="
+                min-h-[44px] cursor-pointer appearance-none rounded border-0 bg-transparent
+                pl-2 pr-7 text-base font-semibold text-white transition-colors
+                hover:bg-white/10 focus:outline-none focus-visible:ring-2
+                focus-visible:ring-white/70 [&>option]:bg-teal-900 [&>option]:text-white
+              "
+            >
+              <option value="">Select state…</option>
+              {NIGERIAN_STATES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+            <svg
+              className="pointer-events-none absolute right-1.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                fillRule="evenodd"
+                d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </div>
         </label>
         <button onClick={() => go(path === "/about" ? "/" : "/about")} className="min-h-11 rounded-lg px-2 text-sm font-semibold underline">
           {path === "/about" ? "Back" : "About"}
@@ -153,7 +179,7 @@ export default function App() {
                   <p className="text-[15px] text-slate-600">
                     English or Pidgin. Age, days of fever, RDT result and any worrying signs. No names.
                   </p>
-                  {!region && <p className="mt-2 text-sm font-semibold text-amber-800">Pick the patient's state above so Iba can check local outbreaks.</p>}
+                  {!region && <p className="mt-2 text-sm font-semibold text-amber-800">Pick the patient's state above so Ibà can check local outbreaks.</p>}
                 </div>
                 <div>
                   <p className="mb-2 text-sm font-bold uppercase tracking-wide text-slate-500">Try a demo case</p>

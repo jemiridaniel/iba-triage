@@ -11,22 +11,13 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["icon.svg"],
-      manifest: {
-        name: "Iba: fever triage support",
-        short_name: "Iba",
-        description: "Fever-triage decision support for primary health care workers in Nigeria.",
-        theme_color: "#115e59",
-        background_color: "#ffffff",
-        display: "standalone",
-        start_url: "/",
-        icons: [
-          { src: "icon-192.png", sizes: "192x192", type: "image/png" },
-          { src: "icon-512.png", sizes: "512x512", type: "image/png" },
-          { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
-        ],
-      },
+      // public/manifest.webmanifest is hand-written and checked by tests/test_pwa.py.
+      manifest: false,
+      includeAssets: ["icon.svg", "apple-touch-icon.png", "manifest.webmanifest"],
       workbox: {
+        globPatterns: ["**/*.{js,css,html,svg,png,webmanifest}"],
+        // Launch images are large and only used by iOS at launch: served, not precached.
+        globIgnores: ["**/splash/**"],
         navigateFallback: "/index.html",
         // Triage always needs the network; never serve API responses from cache.
         navigateFallbackDenylist: [/^\/triage/, /^\/meta/, /^\/health/, /^\/docs/],

@@ -1,4 +1,4 @@
-"""Weight-band dose lookup and dose stripping. The ONLY source of doses in Iba.
+"""Weight-band dose lookup and dose stripping. The ONLY source of doses in Ibà.
 
 The LLM never generates doses (CLAUDE.md rule 3). `strip_doses` removes dose-like text from
 model output; `doses_for` attaches doses from the table below, with a citation.
@@ -89,7 +89,7 @@ def doses_for(case: PatientCase, level: TriageLevel) -> tuple[list[DoseRecommend
 
 # --- stripping --------------------------------------------------------------
 
-DOSE_PLACEHOLDER = "[dose: see Iba dose table]"
+DOSE_PLACEHOLDER = "[dose: see Ibà dose table]"
 _NUM = r"\d+(?:[.,]\d+)?"
 _DOSE_RE = re.compile(
     rf"(?<![\w.])(?:{_NUM}\s*/\s*)?{_NUM}(?:\s*(?:-|–|to)\s*{_NUM})?\s*"

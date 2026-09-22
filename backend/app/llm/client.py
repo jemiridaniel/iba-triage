@@ -8,7 +8,7 @@ Usage:
     client = LLMClient()
     with track_usage() as records:
         case, _ = client.chat_json(messages, PatientCase, model=s.model_fast, step="intake")
-    summarize(records)  # -> totals for the "How Iba decided" panel
+    summarize(records)  # -> totals for the "How Ibà decided" panel
 """
 
 from __future__ import annotations

@@ -188,7 +188,7 @@ def test_referral_note_has_header_and_referral_blanks(tmp_path: Path) -> None:
     s.case = PatientCase(state="Ondo")
     s.post = PostOutput(status="complete", triage_level=TriageLevel.REFER_NOW, triage_rationale="r")
     note = nodes.compose(s, deps)["compose"].referral_note
-    assert note.startswith("IBA TRIAGE NOTE · ") and "REFER NOW · Ondo" in note.splitlines()[0]
+    assert note.startswith("IBÀ TRIAGE NOTE · ") and "REFER NOW · Ondo" in note.splitlines()[0]
     assert "Referred to: ____" in note
 
 

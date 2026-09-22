@@ -1,7 +1,7 @@
 # Clinical review checklist
 
-Iba is decision support, not diagnosis. Every clinical default below was set by the build
-team from the cited guideline, **and needs sign-off by a qualified clinician** before Iba is
+Ibà is decision support, not diagnosis. Every clinical default below was set by the build
+team from the cited guideline, **and needs sign-off by a qualified clinician** before Ibà is
 used with real patients. Where the guideline doesn't settle a question, we chose the option
 that refers more, because under-triage costs more than over-triage.
 
@@ -13,7 +13,7 @@ Code: `lassa_assessment` in [backend/app/rules/danger_signs.py](../backend/app/r
 Source: NCDC *National Guideline for Lassa Fever Case Management* (2018), §1.1.2 Suspected case
 (pp. 8–9) and §2.1.1 triage of a suspected case (p. 11).
 
-| Situation | Iba default |
+| Situation | Ibà default |
 |---|---|
 | Active live outbreak signal in the patient's state + case definition met, OR fever ≥ 3 days not responding to treatment, OR abnormal bleeding | **Refer now** + isolation/IPC advice |
 | Endemic state (baseline list) + case definition met (fever 3–21 days + ≥ 1 of vomiting, diarrhoea, sore throat, myalgia, generalised weakness, abnormal bleeding, abdominal pain) | **Refer now** + isolation/IPC advice |

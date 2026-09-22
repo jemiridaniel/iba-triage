@@ -11,11 +11,15 @@ export function About() {
 
   return (
     <div className="space-y-5 text-[15px] leading-relaxed">
+      <p className="text-sm text-slate-600">
+        <strong>Ibà</strong> is the Yoruba word for fever.
+      </p>
+
       <section className="rounded-xl border-2 border-red-300 bg-red-50 p-4">
         <h2 className="mb-1 text-lg font-bold text-red-900">Decision support, not diagnosis</h2>
         <p>
-          Iba helps primary health care workers triage febrile patients. It does not diagnose. A qualified
-          health worker makes every decision. When Iba is unsure or anything fails, it says{" "}
+          Ibà helps primary health care workers triage febrile patients. It does not diagnose. A qualified
+          health worker makes every decision. When Ibà is unsure or anything fails, it says{" "}
           <strong>Refer now</strong>. It never gives a silent green.
         </p>
       </section>

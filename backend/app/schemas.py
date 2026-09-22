@@ -272,7 +272,7 @@ DISCLAIMER = (
 
 class TriageResult(BaseModel):
     # complete: full assessment; needs_info: answer `questions` and resubmit;
-    # incomplete: Iba could not finish and failed safe to "Refer now".
+    # incomplete: Ibà could not finish and failed safe to "Refer now".
     status: Literal["complete", "needs_info", "incomplete"]
     triage_level: TriageLevel | None = None
     triage_label: str | None = None

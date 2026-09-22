@@ -1,7 +1,7 @@
-# Iba: fever-triage copilot
+# Ibà: fever-triage copilot
 
 Decision support for primary health care workers in Nigeria (CHEWs, PHC nurses). A worker
-describes a febrile patient in English or Nigerian Pidgin; Iba returns a triage level, danger
+describes a febrile patient in English or Nigerian Pidgin; Ibà returns a triage level, danger
 signs, a referral recommendation with guideline citations, an outbreak-aware differential, and
 a referral note. **Decision support, not diagnosis: a clinician always decides.**
 
