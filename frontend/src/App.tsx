@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { streamTriage } from "./api";
+import demos from "./demos.json";
 import { About } from "./components/About";
 import { Questions } from "./components/Questions";
 import { ResultCard } from "./components/ResultCard";
@@ -14,23 +15,8 @@ const QUICK_ADD = [
   "sore throat", "neck stiff", "watery stool",
 ];
 
-const DEMOS = [
-  {
-    label: "Child with danger signs",
-    state: "Kano",
-    text: "Pikin 2 years, hot body 3 days, e dey convulse, e no fit drink, RDT positive",
-  },
-  {
-    label: "Adult, Lassa suspicion (Ondo)",
-    state: "Ondo",
-    text: "Adult man 35 years, fever 5 days, RDT negative, took coartem for 3 days but no improvement, headache and sore throat",
-  },
-  {
-    label: "Uncomplicated malaria",
-    state: "Lagos",
-    text: "Adult woman 28 years, 62 kg, fever 2 days, RDT positive, eating and drinking well",
-  },
-];
+// Shared with scripts/demo_check.py, which asserts these still triage as expected.
+const DEMOS: { label: string; state: string; text: string; expected: string }[] = demos;
 
 const STEPS = ["intake", "rules_pre", "outbreak", "retrieve", "reason", "rules_post", "compose"];
 
@@ -88,7 +74,7 @@ export default function App() {
             if (data?.trace) next.trace = [...r.trace, data.trace];
             switch (event) {
               case "intake": next.questions = data.questions; break;
-              case "rules_pre": next.floor = data.floor; next.floorLabel = data.floor_label; next.dangerSigns = data.danger_signs; break;
+              case "rules_pre": next.floor = data.floor; next.floorLabel = data.floor_label; next.floorReasons = data.reasons; next.dangerSigns = data.danger_signs; break;
               case "outbreak": next.outbreak = data.outbreak; break;
               case "rules_post": next.post = data; break;
               case "compose": next.summary = data.summary; next.referralNote = data.referral_note; break;
@@ -229,13 +215,17 @@ export default function App() {
         {path !== "/about" && (
           <div className="border-t border-slate-200 bg-white">
             {!busy && (
-              <div className="no-scrollbar flex gap-1.5 overflow-x-auto px-2 pt-2" aria-label="Quick add">
+              <div className="relative">
+              <div className="no-scrollbar flex gap-1.5 overflow-x-auto px-2 pr-10 pt-2" aria-label="Quick add">
                 {QUICK_ADD.map((p) => (
                   <button key={p} type="button" onClick={() => quickAdd(p)}
                           className="min-h-9 shrink-0 rounded-full border border-teal-300 bg-white px-3 text-sm text-teal-900 active:scale-95 transition">
                     + {p}
                   </button>
                 ))}
+              </div>
+              {/* right-edge fade: the row scrolls */}
+              <div className="pointer-events-none absolute right-0 top-0 h-full w-12 bg-gradient-to-l from-white to-transparent" />
               </div>
             )}
             <form onSubmit={(e) => { e.preventDefault(); startCase(draft, region); }} className="flex gap-2 p-2">
@@ -261,7 +251,7 @@ export default function App() {
         </footer>
       </div>
 
-      <TraceSheet steps={run?.trace ?? []} open={traceOpen} onClose={() => setTraceOpen(false)} />
+      <TraceSheet steps={run?.trace ?? []} wallMs={run?.final?.decision_trace?.wall_ms} open={traceOpen} onClose={() => setTraceOpen(false)} />
       <CitationSheet citation={citation?.cite ?? null} quote={citation?.quote} onClose={() => setCitation(null)} />
     </div>
   );

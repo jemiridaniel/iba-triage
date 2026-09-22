@@ -25,8 +25,8 @@ from backend.app.graph.state import (
     RuleSnapshot,
     TriageState,
 )
-from backend.app.llm.client import LLMError
-from backend.app.llm.router import call_json
+from backend.app.llm.client import LLMError, LLMTruncatedError
+from backend.app.llm.router import THINKING_OFF_KWARGS, call_json, route
 from backend.app.rag.queries import (
     plan_queries,
     prompt_passages,
@@ -57,6 +57,7 @@ from backend.app.schemas import (
     Reason,
     RetrievalQuery,
     TriageLevel,
+    most_urgent,
 )
 
 CRITICAL_FIELDS = ("age_years", "fever_days", "rdt_result")
@@ -64,6 +65,7 @@ CRITICAL_FIELDS = ("age_years", "fever_days", "rdt_result")
 QUESTION_ORDER = ("fever_days", "rdt_result", "treatment_response", "age_years")
 MAX_QUESTIONS = 2
 INCOMPLETE_RATIONALE = "Refer: Iba could not complete the assessment."
+ASSESSMENT_UNAVAILABLE = "Detailed assessment unavailable — safety rules applied. Refer."
 _PIDGIN_MARKERS = re.compile(r"\b(pikin|dey|don|wetin|abeg|dem|wahala|na im|e no)\b", re.I)
 
 
@@ -121,7 +123,16 @@ def missing_information(case: PatientCase) -> list[str]:
 
 
 def rules_pre(state: TriageState, deps: Deps) -> dict[str, Any]:
-    return {"pre": RuleSnapshot.of(assess(case_with_text(state), []))}
+    """Danger signs + the Lassa case definition against the static endemicity baseline.
+
+    Needs no network, so a rule-based Refer now streams within ~1.5 s. Live outbreak signals
+    can only escalate this later (rules_post), never lower it.
+    """
+    region = state.request.state or (state.case.state if state.case else None)
+    baseline = deps.outbreak.endemicity.for_state(
+        region, deps.outbreak.today(), deps.outbreak.resolve
+    )
+    return {"pre": RuleSnapshot.of(assess(case_with_text(state), baseline))}
 
 
 def after_rules_pre(state: TriageState) -> str:
@@ -203,7 +214,10 @@ def retrieve(state: TriageState, deps: Deps) -> dict[str, Any]:
         if missing:
             known.update(zip(missing, deps.embed(missing), strict=True))
     except LLMError as exc:
-        return {"retrieval_note": f"Guideline retrieval failed ({type(exc).__name__})."}
+        return {
+            "retrieval_note": "Guideline passages are unavailable right now.",
+            "_note": f"retrieval failed: {_error(exc)}",
+        }
     hits, logs = search_plans(
         deps.store, plans, [known[p.text] for p in plans], k_total=deps.settings.retrieve_top_k
     )
@@ -238,6 +252,27 @@ def reason(state: TriageState, deps: Deps) -> dict[str, Any]:
     messages = reason_messages(case, state.pre, passages, state.outbreak)
     try:
         out, _ = call_json(deps.client, "reason", messages, ReasonOutput, state.eval_config)
+    except LLMTruncatedError as exc:
+        # Reasoning ran past max_tokens. Token Factory offers no reasoning-budget control
+        # (scripts/probe_reasoning_budget.py), so retry once with reasoning off. Quote
+        # verification still applies to the result.
+        cfg = route("reason", deps.settings, state.eval_config)
+        try:
+            out, _ = deps.client.chat_json(
+                messages,
+                ReasonOutput,
+                model=cfg.model,
+                step="reason:fallback",
+                max_tokens=deps.settings.max_tokens_fallback,
+                extra_body=THINKING_OFF_KWARGS,
+            )
+        except LLMError as retry_exc:
+            return {"reason_error": f"{_error(exc)}; fallback: {_error(retry_exc)}"}
+        return {
+            "reason": out,
+            "_reasoning": False,
+            "_note": f"reasoning: off (fallback after truncation: {exc})",
+        }
     except LLMError as exc:
         return {"reason_error": _error(exc)}
     return {"reason": out}
@@ -270,10 +305,13 @@ def rules_post(state: TriageState, deps: Deps) -> dict[str, Any]:
         rationale = INCOMPLETE_RATIONALE
         differential: list[DifferentialItem] = []
         actions: list[ActionItem] = []
-        warnings.append(f"Assessment incomplete ({state.intake_error or state.reason_error}).")
+        # Technical detail stays in the decision trace, not in the user's notes.
+        warnings.append(ASSESSMENT_UNAVAILABLE)
     else:
         status = "complete"
-        level = apply_floor(out.triage_level, rules.floor)
+        level = apply_floor(
+            out.triage_level, most_urgent(rules.floor, state.pre.floor if state.pre else None)
+        )
         rationale = out.triage_rationale
         if level != out.triage_level:
             rationale = (

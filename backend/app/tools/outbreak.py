@@ -232,7 +232,8 @@ class OutbreakTool:
         except Exception as exc:  # network, auth, quota: degrade, never crash triage
             logger.warning("outbreak search failed: %s", type(exc).__name__)
             return self._unavailable(
-                f"Live outbreak data unavailable: search failed ({type(exc).__name__})."
+                "Live outbreak data unavailable right now.",
+                detail=f"search failed: {type(exc).__name__}",
             )
 
         signals: list[OutbreakSignal] = []
@@ -249,7 +250,8 @@ class OutbreakTool:
             except LLMError as exc:
                 logger.warning("outbreak extraction failed: %s", type(exc).__name__)
                 return self._unavailable(
-                    "Live outbreak data unavailable: could not read search results."
+                    "Live outbreak data unavailable right now.",
+                    detail=f"extraction failed: {type(exc).__name__}",
                 )
             signals, dropped = filter_signals(extraction.signals, results, today)
 
@@ -289,7 +291,7 @@ class OutbreakTool:
         )
         return [{"role": "system", "content": EXTRACT_SYSTEM}, {"role": "user", "content": user}]
 
-    def _unavailable(self, message: str) -> OutbreakContext:
-        self.last_note = message
+    def _unavailable(self, message: str, detail: str | None = None) -> OutbreakContext:
+        self.last_note = f"{message} ({detail})" if detail else message
         source = self.search.source if self.search is not None else "none"
         return OutbreakContext(status="unavailable", source=source, message=message)

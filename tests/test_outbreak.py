@@ -125,14 +125,16 @@ def test_search_failure_degrades(tmp_path: Path) -> None:
     tool, _ = tool_with(tmp_path, RecordingSearch(error=TimeoutError()))
     ctx = tool.check("Ondo")
     assert ctx.status == "unavailable"
-    assert "TimeoutError" in ctx.message
+    assert ctx.message.startswith("Live outbreak data unavailable right now.")
+    assert "TimeoutError" not in ctx.message  # user sees plain text
+    assert "TimeoutError" in tool.last_note  # detail goes to the decision trace
 
 
 def test_extraction_failure_degrades(tmp_path: Path) -> None:
     tool, _ = tool_with(tmp_path, RecordingSearch(), {"outbreak extraction": ["bad", "bad"]})
     ctx = tool.check("Ondo")
     assert ctx.status == "unavailable"
-    assert "could not read" in ctx.message
+    assert "LLMParseError" in tool.last_note and "LLMParseError" not in ctx.message
 
 
 def test_no_results_is_ok_with_no_signals(tmp_path: Path) -> None:

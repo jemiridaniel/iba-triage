@@ -1,0 +1,20 @@
+[
+  {
+    "label": "Child with danger signs",
+    "state": "Kano",
+    "text": "Pikin 2 years, hot body 3 days, e dey convulse, e no fit drink, RDT positive",
+    "expected": "refer_now"
+  },
+  {
+    "label": "Adult, Lassa suspicion (Ondo)",
+    "state": "Ondo",
+    "text": "Adult man 35 years, fever 5 days, RDT negative, took coartem for 3 days but no improvement, headache and sore throat",
+    "expected": "refer_now"
+  },
+  {
+    "label": "Uncomplicated malaria",
+    "state": "Lagos",
+    "text": "Adult woman 28 years, 62 kg, fever 2 days, RDT positive, eating and drinking well",
+    "expected": "treat_monitor"
+  }
+]

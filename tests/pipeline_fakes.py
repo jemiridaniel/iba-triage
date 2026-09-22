@@ -25,13 +25,14 @@ TODAY = date(2026, 9, 22)
 LASSA_URL = "https://ncdc.gov.ng/diseases/sitreps/MOCK-lassa-2026-w37"
 
 Reply = str | dict | Callable[[dict], str] | list
+TRUNCATED = object()  # sentinel: reply cut off mid-reasoning (finish_reason="length")
 
 
 class ScriptedCompletions:
     """Answers by the "Task: <name>." line that starts every system prompt.
 
     A reply may be a JSON string, a dict (dumped), a callable(kwargs) -> str, or a list
-    consumed in order (one item per call).
+    consumed in order (one item per call). TRUNCATED stands for a reply cut off at max_tokens.
     """
 
     def __init__(self, replies: dict[str, Reply]):
@@ -47,10 +48,13 @@ class ScriptedCompletions:
             reply = reply.pop(0)
         if callable(reply):
             reply = reply(kwargs)
+        finish = "stop"
+        if reply is TRUNCATED:
+            reply, finish = 'Here\'s a thinking process: ... {"draft": true}', "length"
         content = json.dumps(reply) if isinstance(reply, dict) else reply
         return SimpleNamespace(
             choices=[
-                SimpleNamespace(message=SimpleNamespace(content=content), finish_reason="stop")
+                SimpleNamespace(message=SimpleNamespace(content=content), finish_reason=finish)
             ],
             usage=SimpleNamespace(
                 prompt_tokens=100, completion_tokens=50, completion_tokens_details=None

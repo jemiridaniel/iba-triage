@@ -107,6 +107,7 @@ export interface TraceStep {
 
 export interface DecisionTrace {
   steps: TraceStep[];
+  wall_ms?: number | null;
   total_latency_ms: number;
   total_tokens: number;
   total_cost_usd: number;
@@ -145,6 +146,7 @@ export interface LiveRun {
   questions?: FollowUpQuestion[];
   floor?: TriageLevel | null;
   floorLabel?: string | null;
+  floorReasons?: string[];
   dangerSigns?: DangerSignHit[];
   outbreak?: OutbreakContext;
   post?: Omit<TriageResult, "questions" | "disclaimer" | "decision_trace" | "outbreak">;

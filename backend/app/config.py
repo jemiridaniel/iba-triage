@@ -49,7 +49,9 @@ class Settings(BaseSettings):
     # Completion budgets. Reasoning tokens count toward max_tokens, and a truncated reply
     # is rejected, so reasoning steps need a much larger budget.
     max_tokens_reasoning_off: int = 1024
-    max_tokens_reasoning_on: int = 8192
+    max_tokens_reasoning_on: int = 16384
+    # If a reasoning step is still truncated, it is retried once with reasoning off.
+    max_tokens_fallback: int = 4096
     # Hard cap on cumulative live spend, tracked in CACHE_DIR/spend.json. Raise it deliberately.
     max_spend_usd: float = 0.50
     log_level: str = "INFO"

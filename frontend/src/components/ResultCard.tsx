@@ -144,9 +144,14 @@ function Banner({ run }: { run: LiveRun }) {
         {run.post?.status === "incomplete" && <span className="ml-2 text-base font-semibold">(assessment incomplete)</span>}
       </p>
       {provisional ? (
-        <p className="mt-1 text-sm font-medium">
-          Safety rules already require at least this level. Finishing assessment… <span className="tabular-nums">{elapsed}s</span>
-        </p>
+        <>
+          {run.floorReasons && run.floorReasons.length > 0 && (
+            <p className="mt-1 text-sm font-semibold">RULE: {run.floorReasons.join("; ")}</p>
+          )}
+          <p className="mt-1 text-sm font-medium">
+            Safety rules already require at least this level. Finishing assessment… <span className="tabular-nums">{elapsed}s</span>
+          </p>
+        </>
       ) : (
         run.post?.triage_rationale && <p className="mt-1 text-sm leading-snug opacity-95">{run.post.triage_rationale}</p>
       )}

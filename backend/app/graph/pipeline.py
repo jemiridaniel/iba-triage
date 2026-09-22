@@ -70,6 +70,7 @@ def traced(step: str, fn: NodeFn, kind: str, router_step: str | None, deps: Deps
                 reasoning = None
         costs = [r.cost_usd for r in records if r.cost_usd is not None]
         reasoning_counts = [r.reasoning_tokens for r in records if r.reasoning_tokens is not None]
+        reasoning = update.pop("_reasoning", reasoning)  # e.g. off after a truncation fallback
         step_trace = TraceStep(
             step=step,
             kind=kind,  # type: ignore[arg-type]
@@ -154,7 +155,10 @@ def failsafe_result(request: TriageRequest, exc: Exception) -> TriageResult:
         triage_label=TRIAGE_LABELS[TriageLevel.REFER_NOW],
         triage_rationale=nodes.INCOMPLETE_RATIONALE,
         danger_signs=rules.danger_signs,
-        warnings=[f"Iba hit an unexpected error ({type(exc).__name__}) and failed safe."],
+        warnings=[nodes.ASSESSMENT_UNAVAILABLE],
+        decision_trace=DecisionTrace(
+            steps=[TraceStep(step="error", kind="rules", note=f"{type(exc).__name__}: {exc}"[:300])]
+        ),
     )
 
 
@@ -180,6 +184,7 @@ def _event_payload(node: str, update: dict[str, Any]) -> dict[str, Any]:
         payload |= {
             "floor": pre.floor.value if pre.floor else None,
             "floor_label": TRIAGE_LABELS[pre.floor] if pre.floor else None,
+            "reasons": pre.reasons,
             "danger_signs": [dump(h) for h in pre.danger_signs],
         }
     elif node == "embed_queries":
@@ -241,7 +246,7 @@ def stream_triage(
         logger.exception("pipeline error during stream")
         yield (
             "error",
-            {"fatal": False, "message": f"Unexpected error ({type(exc).__name__}); failing safe."},
+            {"fatal": False, "message": nodes.ASSESSMENT_UNAVAILABLE},
         )
         yield "final", failsafe_result(request, exc).model_dump(mode="json")
 

@@ -63,6 +63,7 @@ export function CitationSheet({ citation, quote, onClose }: { citation: Citation
 const STEP_NAMES: Record<string, string> = {
   intake: "Understand the case",
   rules_pre: "Danger-sign rules",
+  embed_queries: "Prepare guideline search (in parallel)",
   retrieve: "Find guideline passages",
   outbreak: "Outbreak check",
   reason: "Clinical reasoning",
@@ -80,8 +81,9 @@ function stepMs(s: TraceStep): number {
   return s.cached && s.model_latency_ms ? s.model_latency_ms : s.latency_ms;
 }
 
-export function TraceSheet({ steps, open, onClose }: { steps: TraceStep[]; open: boolean; onClose: () => void }) {
-  const total = steps.reduce((a, s) => a + stepMs(s), 0) || 1;
+export function TraceSheet({ steps, wallMs, open, onClose }: { steps: TraceStep[]; wallMs?: number | null; open: boolean; onClose: () => void }) {
+  const sum = steps.reduce((a, s) => a + stepMs(s), 0) || 1;
+  const total = wallMs ?? sum; // some steps run in parallel
   const cost = steps.reduce((a, s) => a + (s.cost_usd ?? 0), 0);
   return (
     <BottomSheet title="How Iba decided" open={open} onClose={onClose}>
@@ -96,7 +98,7 @@ export function TraceSheet({ steps, open, onClose }: { steps: TraceStep[]; open:
                 <span className="tabular-nums text-slate-500">{(ms / 1000).toFixed(1)} s</span>
               </div>
               <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
-                <div className={`h-full ${colour} grow-x`} style={{ width: `${Math.max(2, (ms / total) * 100)}%` }} />
+                <div className={`h-full ${colour} grow-x`} style={{ width: `${Math.max(2, (ms / sum) * 100)}%` }} />
               </div>
               <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-slate-600">
                 <span>{s.model ? shortModel(s.model) : s.kind === "rules" ? "deterministic rules (not AI)" : s.kind}</span>
