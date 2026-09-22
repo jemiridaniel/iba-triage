@@ -1,0 +1,22 @@
+# Local run of the production image:  docker compose up --build   ->  http://localhost:8000
+# Config comes from .env (never baked into the image). The guideline index and the spend
+# ledger are mounted from the host, so the container shares the host's MAX_SPEND_USD budget.
+services:
+  iba:
+    build: .
+    image: iba-triage:local
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      APP_ENV: prod
+      MAX_SPEND_USD: ${MAX_SPEND_USD:-0.50}
+      # Optional: replay canned outbreak search results (clearly flagged MOCK in the UI).
+      OUTBREAK_MOCK_FILE: ${OUTBREAK_MOCK_FILE:-}
+    volumes:
+      - ./data/index:/app/data/index:ro
+      - ./.cache:/app/.cache
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped

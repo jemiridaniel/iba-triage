@@ -1,0 +1,22 @@
+# Never send secrets or local state into the build context
+.env
+.env.*
+!.env.example
+.git
+.cache
+.venv
+**/__pycache__
+.pytest_cache
+.ruff_cache
+.claude
+.DS_Store
+frontend/node_modules
+frontend/dist
+frontend/dev-dist
+data/raw
+data/index
+data/index_fake
+tests
+eval
+docs
+scripts

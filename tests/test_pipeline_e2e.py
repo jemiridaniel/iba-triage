@@ -66,7 +66,7 @@ def test_child_with_danger_signs_is_refer_now_by_rule(tmp_path: Path) -> None:
     assert r.actions[0].source == "rule" and r.actions[0].text.startswith("Refer now")
     assert "Pidgin" in llm.messages_for("compose")[0]["content"]
     assert "helper only" in r.referral_note  # Pidgin disclaimer
-    assert any("Outbreak data unavailable" in w for w in r.warnings)  # never silent
+    assert any("outbreak data unavailable" in w.lower() for w in r.warnings)  # never silent
 
 
 # --- scenario 2: adult, RDT negative, 5 days fever, Ondo + Lassa signal ------
@@ -119,7 +119,7 @@ def test_adult_in_lassa_outbreak_state_gets_lassa_and_isolation(tmp_path: Path) 
     assert lassa.condition == "Lassa fever" and lassa.source == "rule"
     assert lassa.citations == [LASSA_URL]
     assert r.actions[0].text == LASSA_IPC_REMINDER
-    assert "Isolate" in LASSA_IPC_REMINDER or "isolate" in LASSA_IPC_REMINDER
+    assert "holding area" in LASSA_IPC_REMINDER and "infection prevention" in LASSA_IPC_REMINDER
 
     # Outbreak: undated and invented-URL signals dropped; mock data flagged.
     assert r.outbreak.status == "ok" and r.outbreak.source == "mock"
@@ -131,7 +131,11 @@ def test_adult_in_lassa_outbreak_state_gets_lassa_and_isolation(tmp_path: Path) 
 
     # Citations: only resolvable ones survive.
     assert r.differential[1].citations == ["fake-malaria:0002"]
-    assert r.actions[1].citations == []
+    # The model's "Refer for further tests" is merged into the rule's Lassa action as detail;
+    # its invented citation is still dropped.
+    assert len(r.actions) == 1
+    assert r.actions[0].details == ["Refer for further tests"]
+    assert "https://invented.example" not in r.actions[0].citations
     assert any("Dropped 2 citation" in w for w in r.warnings)
     assert {c.ref for c in r.citations} == {LASSA_URL, "fake-malaria:0002"}
 

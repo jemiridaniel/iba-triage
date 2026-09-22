@@ -25,8 +25,8 @@ def state_for(text: str, **kw) -> TriageState:
 def test_intake_asks_up_to_two_questions_in_input_language(tmp_path: Path) -> None:
     deps, _ = make_deps(tmp_path, {"intake": {"symptoms": ["fever"], "language": "pcm"}})
     update = nodes.intake(state_for("Pikin get hot body"), deps)
-    assert [q.id for q in update["questions"]] == ["age_years", "fever_days"]
-    assert update["questions"][0].text == "How old the patient be?"
+    assert [q.id for q in update["questions"]] == ["fever_days", "rdt_result"]
+    assert update["questions"][0].text == "How many days the body don dey hot?"
     assert update["case"].missing_fields == ["age_years", "fever_days", "rdt_result"]
 
 
@@ -117,7 +117,7 @@ def test_reason_prompt_forbids_doses_and_lists_sources() -> None:
     system, user = reason_messages(PatientCase(age_years=3), RuleSnapshot(floor=None), [], ctx)
     assert "NEVER write drug doses" in system["content"]
     assert "Cite ONLY" in system["content"]
-    assert "Outbreak data unavailable" in user["content"]
+    assert "Live outbreak data unavailable" in user["content"]
     assert "raw_text" not in user["content"]
 
 

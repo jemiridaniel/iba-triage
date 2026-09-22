@@ -49,6 +49,7 @@ class Source(BaseModel):
     url: str | None = None
     url_confirmed: bool = False
     edition: str | None = None
+    licence: str | None = None
     licence_note: str | None = None
     commit_text: bool = False
 
@@ -71,6 +72,8 @@ def extract_pages(pdf_path: Path) -> list[str]:
 
 
 _PAGE_NUMBER = re.compile(r"^(?:page\s+)?\d{1,4}(?:\s*(?:of|/)\s*\d{1,4})?$", re.IGNORECASE)
+# Table-of-contents entries: "1.1.2 Suspected case ........ 7" (dot or ellipsis leaders).
+_TOC_LINE = re.compile(r"(?:\.\s*){5,}\s*\d{1,4}\s*$|…{2,}\s*\d{1,4}\s*$")
 _NUMBERED_HEADING = re.compile(r"^(?:\d+(?:\.\d+)+\.?|\d+)\s+[A-Z(]")
 _KEYWORD_HEADING = re.compile(r"^(?:chapter|section|annex|appendix|part)\s+[\w.]+", re.IGNORECASE)
 
@@ -107,7 +110,10 @@ def _clean_lines(pages: list[str]) -> list[list[str]]:
         counts = Counter(ln for lines in per_page for ln in set(lines))
         repeated = {ln for ln, n in counts.items() if n > len(per_page) / 2}
         per_page = [[ln for ln in lines if ln not in repeated] for lines in per_page]
-    return [[ln for ln in lines if not _PAGE_NUMBER.match(ln)] for lines in per_page]
+    return [
+        [ln for ln in lines if not _PAGE_NUMBER.match(ln) and not _TOC_LINE.search(ln)]
+        for lines in per_page
+    ]
 
 
 def to_units(pages: list[str]) -> list[Unit]:
@@ -229,7 +235,32 @@ def embed_chunks(chunks: list[GuidelineChunk], embed: Embedder, batch_size: int 
     return normalise(np.asarray(rows, dtype=np.float32))
 
 
-def chunk_sources(sources: list[Source], raw_dir: Path) -> list[GuidelineChunk]:
+LOW_TEXT_CHARS_PER_PAGE = 200  # below this a PDF is probably scanned images
+EMPTY_PAGE_CHARS = 50
+
+
+@dataclass
+class DocStats:
+    doc_id: str
+    pages: int
+    chars: int
+    empty_pages: int  # pages with almost no extractable text
+    chunks: int
+    tokens: int
+
+    @property
+    def chars_per_page(self) -> float:
+        return self.chars / self.pages if self.pages else 0.0
+
+    @property
+    def likely_scanned(self) -> bool:
+        return self.chars_per_page < LOW_TEXT_CHARS_PER_PAGE or self.empty_pages > self.pages / 2
+
+
+def chunk_sources(
+    sources: list[Source], raw_dir: Path, stats: list[DocStats] | None = None
+) -> list[GuidelineChunk]:
+    """Chunk every listed PDF that exists. Appends per-document stats to `stats` if given."""
     chunks: list[GuidelineChunk] = []
     listed = {s.file for s in sources}
     for stray in sorted(p.name for p in raw_dir.glob("*.pdf") if p.name not in listed):
@@ -239,10 +270,34 @@ def chunk_sources(sources: list[Source], raw_dir: Path) -> list[GuidelineChunk]:
         if not path.exists():
             logger.warning("missing %s (%s); download it from %s", path, source.doc_id, source.url)
             continue
-        doc_chunks = chunk_document(source.doc_id, source.title, extract_pages(path))
+        pages = extract_pages(path)
+        doc_chunks = chunk_document(source.doc_id, source.title, pages)
         logger.info("%s: %d chunks", source.doc_id, len(doc_chunks))
         chunks.extend(doc_chunks)
+        if stats is not None:
+            stats.append(
+                DocStats(
+                    doc_id=source.doc_id,
+                    pages=len(pages),
+                    chars=sum(len(p.strip()) for p in pages),
+                    empty_pages=sum(len(p.strip()) < EMPTY_PAGE_CHARS for p in pages),
+                    chunks=len(doc_chunks),
+                    tokens=sum(c.tokens for c in doc_chunks),
+                )
+            )
     return chunks
+
+
+def print_stats(stats: list[DocStats]) -> None:
+    print(
+        f"{'document':<26} {'pages':>5} {'chars/pg':>8} {'empty pg':>8} {'chunks':>6} {'tokens':>8}"
+    )
+    for st in stats:
+        flag = "  <-- LOW TEXT: likely scanned, needs OCR" if st.likely_scanned else ""
+        print(
+            f"{st.doc_id:<26} {st.pages:>5} {st.chars_per_page:>8.0f} {st.empty_pages:>8} "
+            f"{st.chunks:>6} {st.tokens:>8,}{flag}"
+        )
 
 
 def write_index(
@@ -295,9 +350,13 @@ def main() -> int:
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
+    logging.getLogger("pypdf").setLevel(logging.ERROR)  # noisy about malformed xrefs
+
     sources = load_sources(args.sources)
     if args.dry_run:
-        chunks = chunk_sources(sources, args.raw_dir)
+        stats: list[DocStats] = []
+        chunks = chunk_sources(sources, args.raw_dir, stats)
+        print_stats(stats)
         tokens = [c.tokens for c in chunks]
         print(f"{len(chunks)} chunks, ~{sum(tokens):,} tokens total")
         if tokens:

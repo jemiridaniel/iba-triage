@@ -7,9 +7,9 @@ a referral note. **Decision support, not diagnosis: a clinician always decides.*
 
 Built for the Nebius x NVIDIA Global AI Hackathon. Full design: [docs/SPEC.md](docs/SPEC.md).
 
-> Status: week 2. The full LangGraph pipeline runs end to end from the CLI and `POST /triage`.
-> Tavily is mocked until credits arrive; the guideline index and dose table await confirmed
-> sources. The PWA comes next.
+> Status: week 3. Installable PWA with streaming results, served by FastAPI from one Docker
+> image; real guideline index (NCDC + WHO). Pending: live Tavily credits, the NMEP malaria
+> guideline PDF, a verified dose table and a verified endemic-state list.
 
 ## Pipeline
 
@@ -28,8 +28,17 @@ fast      rules      index       fast model  reason    rules        mid
   the weight-band table (currently an UNVERIFIED stub), drops citations that don't resolve,
   and fails safe to "Refer now" if a model step failed.
 - **outbreak** searches trusted domains (NCDC, WHO, ReliefWeb) for the patient's state,
-  extracts dated, sourced signals, and caches per state per day. Without a Tavily key it
-  reports "outbreak data unavailable" in the result instead of guessing.
+  extracts dated, sourced signals, and caches per state per day. A static endemicity
+  baseline ([data/endemicity.yaml](data/endemicity.yaml), e.g. Lassa hotspot states) is always
+  included, so a failed search never leaves triage blind; the result says "using baseline
+  endemicity only". Live and baseline are labelled separately everywhere.
+- **Lassa suspicion** follows the NCDC suspected-case definition (National Guideline for Lassa
+  Fever Case Management 2018, §1.1.2): an active live signal in the state means Refer now; an
+  endemic state alone means Refer within 24h. Intake asks about prior antimalarial/antibiotic
+  treatment when fever has lasted 3+ days.
+- **Treat & monitor** always carries a review interval, "no antimalarials with a negative RDT",
+  and what to test next, each cited to WHO guidance. Rule and model advice that say the same
+  thing are merged (rule wording wins).
 - Every result carries a **decision trace**: model, reasoning on/off, tokens, latency and
   cost per step.
 
@@ -79,6 +88,21 @@ uv run pytest                             # offline; Token Factory is mocked
 uv run uvicorn backend.app.main:app --reload
 ```
 
+### Frontend and Docker
+
+```bash
+cd frontend && corepack pnpm install && corepack pnpm dev   # dev UI on :5173, proxies to :8000
+cd frontend && corepack pnpm build                          # then FastAPI serves frontend/dist
+docker compose up --build                                   # production image on :8000
+```
+
+The image (91 MB compressed) runs as a non-root user with a read-only filesystem and a
+`/health` check. Config comes from `.env` at runtime; the guideline index is mounted from
+`data/index/` rather than baked in (NCDC documents have no stated licence).
+
+`POST /triage/stream` streams server-sent events after each pipeline step, so danger-sign
+referrals appear in about 1.5 s; `POST /triage` returns the whole result at once.
+
 Other scripts:
 
 | Command | What it does | Spends credits? |
@@ -86,13 +110,15 @@ Other scripts:
 | `uv run python -m scripts.list_models --write-prices` | Writes a `MODEL_PRICES` example into `.env.example` | No |
 | `uv run python -m scripts.spend [--reset]` | Shows (or resets) cumulative live spend vs. the cap | No |
 | `uv run python -m backend.app.cli "case text" --state Ondo` | Runs the full pipeline and prints the result and decision trace | ~$0.003 per case |
+| `uv run python -m scripts.fetch_sources` | Downloads confirmed guideline PDFs into `data/raw/` | No |
 | `uv run python -m scripts.build_fake_index` | Builds a tiny labelled FAKE index in `data/index_fake/` for dev | No |
 | `uv run python -m scripts.smoke_fast [--model ID] [--reasoning default\|kwargs-off\|no-think]` | One live call parsing a synthetic case; prints the raw response shape | ~$0.0001–0.0004 |
 | `uv run python -m backend.app.rag.ingest --dry-run` | Chunks PDFs in `data/raw/` | No |
 | `uv run python -m backend.app.rag.ingest` | Chunks + embeds into `data/index/` | Yes (embeddings) |
 
 Guideline PDFs are listed in [data/sources.yaml](data/sources.yaml) with licence notes and are
-not committed; download them into `data/raw/`.
+not committed. `scripts.fetch_sources` downloads them; the NMEP malaria guideline must be added
+by hand. WHO documents are CC BY-NC-SA 3.0 IGO (attribution, non-commercial).
 
 Demo without Tavily credits or real guideline PDFs (synthetic data, clearly flagged in output):
 

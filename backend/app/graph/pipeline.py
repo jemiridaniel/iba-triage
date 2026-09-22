@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -24,9 +24,19 @@ from backend.app.graph import nodes
 from backend.app.graph.state import Deps, TriageRequest, TriageState
 from backend.app.llm.client import LLMClient, track_usage
 from backend.app.llm.router import EvalConfig, route
+from backend.app.llm.spend import SpendLimitError
 from backend.app.rag.fake_embed import HASH_EMBED_MODEL, HashEmbedder
 from backend.app.rag.store import VectorStore
-from backend.app.schemas import TRIAGE_LABELS, DecisionTrace, TraceStep, TriageResult
+from backend.app.rules.danger_signs import assess
+from backend.app.schemas import (
+    TRIAGE_LABELS,
+    DecisionTrace,
+    PatientCase,
+    TraceStep,
+    TriageLevel,
+    TriageResult,
+)
+from backend.app.tools.endemicity import Endemicity
 from backend.app.tools.outbreak import FixtureSearch, OutbreakTool, SearchClient, TavilySearch
 
 logger = logging.getLogger("iba.pipeline")
@@ -121,6 +131,100 @@ def run_triage(
     return to_result(TriageState.model_validate(final) if isinstance(final, dict) else final)
 
 
+def failsafe_result(request: TriageRequest, exc: Exception) -> TriageResult:
+    """An unexpected error still yields a safe answer: Refer now, with rule-detected signs."""
+    case = PatientCase(state=request.state, lga=request.lga, raw_text=nodes.full_text(request))
+    rules = assess(case, [])
+    return TriageResult(
+        status="incomplete",
+        triage_level=TriageLevel.REFER_NOW,
+        triage_label=TRIAGE_LABELS[TriageLevel.REFER_NOW],
+        triage_rationale=nodes.INCOMPLETE_RATIONALE,
+        danger_signs=rules.danger_signs,
+        warnings=[f"Iba hit an unexpected error ({type(exc).__name__}) and failed safe."],
+    )
+
+
+# --- streaming ----------------------------------------------------------------
+
+
+def _event_payload(node: str, update: dict[str, Any]) -> dict[str, Any]:
+    """What the UI needs from each node, as JSON-ready data."""
+
+    def dump(value: Any) -> Any:
+        return value.model_dump(mode="json") if hasattr(value, "model_dump") else value
+
+    trace = update.get("trace") or []
+    payload: dict[str, Any] = {"trace": dump(trace[0]) if trace else None}
+    if node == "intake":
+        payload |= {
+            "case": dump(update.get("case")),
+            "questions": [dump(q) for q in update.get("questions", [])],
+            "error": update.get("intake_error"),
+        }
+    elif node == "rules_pre":
+        pre = update["pre"]
+        payload |= {
+            "floor": pre.floor.value if pre.floor else None,
+            "floor_label": TRIAGE_LABELS[pre.floor] if pre.floor else None,
+            "danger_signs": [dump(h) for h in pre.danger_signs],
+        }
+    elif node == "retrieve":
+        payload |= {"passages": len(update.get("hits", [])), "note": update.get("retrieval_note")}
+    elif node == "outbreak":
+        payload |= {"outbreak": dump(update["outbreak"])}
+    elif node == "reason":
+        payload |= {"ok": update.get("reason") is not None, "error": update.get("reason_error")}
+    elif node == "rules_post":
+        post = update["post"]
+        payload |= dump(post) | {"triage_label": TRIAGE_LABELS[post.triage_level]}
+    elif node == "compose":
+        compose = update.get("compose")
+        payload |= {
+            "summary": compose.summary if compose else None,
+            "referral_note": compose.referral_note if compose else None,
+            "error": update.get("compose_error"),
+        }
+    return payload
+
+
+def stream_triage(
+    request: TriageRequest, deps: Deps, eval_config: EvalConfig = "routed"
+) -> Iterator[tuple[str, dict[str, Any]]]:
+    """Yield (event, data) after every node, then ("final", TriageResult).
+
+    Errors are events too: a SpendLimitError yields a fatal "error" and no triage result;
+    any other unexpected exception yields "error" then a fail-safe "final" (Refer now).
+    """
+    values: dict[str, Any] | None = None
+    try:
+        stream = build_graph(deps).stream(
+            TriageState(request=request, eval_config=eval_config),
+            stream_mode=["updates", "values"],
+        )
+        for mode, chunk in stream:
+            if mode == "values":
+                values = chunk
+                continue
+            for node, update in chunk.items():
+                yield node, _event_payload(node, update)
+        state = TriageState.model_validate(values)
+        yield "final", to_result(state).model_dump(mode="json")
+    except SpendLimitError:
+        logger.error("spend limit reached during stream")
+        yield (
+            "error",
+            {"fatal": True, "message": "Iba is temporarily unavailable (spending limit reached)."},
+        )
+    except Exception as exc:
+        logger.exception("pipeline error during stream")
+        yield (
+            "error",
+            {"fatal": False, "message": f"Unexpected error ({type(exc).__name__}); failing safe."},
+        )
+        yield "final", failsafe_result(request, exc).model_dump(mode="json")
+
+
 def to_result(state: TriageState) -> TriageResult:
     trace = DecisionTrace(steps=state.trace)
     if state.post is None:  # stopped for follow-up questions
@@ -181,7 +285,12 @@ def build_deps(
                     "index built with %s but MODEL_EMBED=%s", store.model, settings.model_embed
                 )
             model = settings.model_embed
-            embed = lambda texts: client.embed(texts, model=model, step="retrieve")  # noqa: E731
+            instruction = settings.embed_query_instruction
+
+            def embed(texts: list[str]) -> list[list[float]]:
+                if instruction:
+                    texts = [f"Instruct: {instruction}\nQuery: {t}" for t in texts]
+                return client.embed(texts, model=model, step="retrieve")
 
     if search is None:
         mock = mock_outbreak or settings.outbreak_mock_file
@@ -190,5 +299,15 @@ def build_deps(
         elif settings.tavily_api_key is not None and settings.tavily_api_key.get_secret_value():
             search = TavilySearch(settings.tavily_api_key.get_secret_value())
 
-    outbreak = OutbreakTool(client, search, settings.cache_dir)
+    def resolve(doc_id: str, phrase: str) -> str | None:
+        chunk = store.find(doc_id, phrase) if store is not None else None
+        return chunk.id if chunk else None
+
+    outbreak = OutbreakTool(
+        client,
+        search,
+        settings.cache_dir,
+        endemicity=Endemicity.load(settings.endemicity_file),
+        resolve=resolve,
+    )
     return Deps(settings=settings, client=client, outbreak=outbreak, store=store, embed=embed)

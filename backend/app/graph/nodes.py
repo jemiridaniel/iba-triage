@@ -26,8 +26,16 @@ from backend.app.graph.state import (
 )
 from backend.app.llm.client import LLMError
 from backend.app.llm.router import call_json
-from backend.app.rules.danger_signs import LASSA_IPC_REMINDER, apply_floor, assess
+from backend.app.rules.danger_signs import (
+    LASSA_CASE_DEF_ANCHOR,
+    LASSA_IPC_REMINDER,
+    LASSA_TRIAGE_ANCHOR,
+    apply_floor,
+    assess,
+    no_treatment_response,
+)
 from backend.app.rules.dosing import doses_for, strip_doses
+from backend.app.rules.followup import merge_advice, treat_monitor_advice
 from backend.app.schemas import (
     TRIAGE_LABELS,
     ActionItem,
@@ -39,6 +47,8 @@ from backend.app.schemas import (
 )
 
 CRITICAL_FIELDS = ("age_years", "fever_days", "rdt_result")
+# Order in which missing information is asked about (at most MAX_QUESTIONS per round).
+QUESTION_ORDER = ("fever_days", "rdt_result", "treatment_response", "age_years")
 MAX_QUESTIONS = 2
 INCOMPLETE_RATIONALE = "Refer: Iba could not complete the assessment."
 _PIDGIN_MARKERS = re.compile(r"\b(pikin|dey|don|wetin|abeg|dem|wahala|na im|e no)\b", re.I)
@@ -69,18 +79,29 @@ def intake(state: TriageState, deps: Deps) -> dict[str, Any]:
         fallback = PatientCase(state=req.state, lga=req.lga, language=language, raw_text=text)
         return {"case": fallback, "intake_error": _error(exc), "questions": []}
 
-    missing = [f for f in CRITICAL_FIELDS if getattr(case, f) is None]
     case = case.model_copy(
-        update={
-            "state": req.state or case.state,
-            "lga": req.lga or case.lga,
-            "missing_fields": missing,
-            "raw_text": text,
-        }
+        update={"state": req.state or case.state, "lga": req.lga or case.lga, "raw_text": text}
     )
+    missing = missing_information(case)
+    case = case.model_copy(update={"missing_fields": missing})
     ask = not (req.answers or req.skip_questions)
-    questions = [follow_up(f, case.language) for f in missing[:MAX_QUESTIONS]] if ask else []
+    ordered = [f for f in QUESTION_ORDER if f in missing]
+    questions = [follow_up(f, case.language) for f in ordered[:MAX_QUESTIONS]] if ask else []
     return {"case": case, "questions": questions}
+
+
+def missing_information(case: PatientCase) -> list[str]:
+    """Critical fields, plus treatment response once fever has lasted 3+ days (NCDC Lassa
+    suspected-case definition, index of suspicion (a))."""
+    missing = [f for f in CRITICAL_FIELDS if getattr(case, f) is None]
+    unknown_treatment = (
+        case.antimalarial_taken is None
+        and case.antibiotic_taken is None
+        and not no_treatment_response(case)
+    )
+    if (case.fever_days or 0) >= 3 and unknown_treatment:
+        missing.append("treatment_response")
+    return missing
 
 
 # --- rules_pre --------------------------------------------------------------
@@ -165,7 +186,7 @@ def _strip(text: str, counter: list[int]) -> str:
 def rules_post(state: TriageState, deps: Deps) -> dict[str, Any]:
     case = case_with_text(state)
     ctx = state.outbreak
-    signals = ctx.signals if ctx is not None and ctx.status == "ok" else []
+    signals = ctx.all_signals if ctx is not None else []  # live (if any) + baseline
     out = state.reason
     extra = (
         [DangerSignHit(code=c, source="llm_reason") for c in out.danger_signs_found] if out else []
@@ -199,26 +220,37 @@ def rules_post(state: TriageState, deps: Deps) -> dict[str, Any]:
         actions.insert(
             0, ActionItem(text=f"Refer now: danger signs present ({labels}).", source="rule")
         )
-    if rules.lassa_signal is not None:
-        sig = rules.lassa_signal
+    if rules.lassa is not None:
+        finding = rules.lassa
+        sig = finding.signal
+        place = [sig.url] if sig.url else ([sig.citation] if sig.citation else [])
+        case_def = _anchors(deps, [LASSA_CASE_DEF_ANCHOR])
         if not any("lassa" in d.condition.lower() for d in differential):
             differential.insert(
                 0,
                 DifferentialItem(
                     condition="Lassa fever",
-                    likelihood="high",
-                    reasons=rules.reasons,
-                    check_next=["Notify the LGA disease surveillance officer for testing"],
-                    citations=[sig.url] if sig.url else [],
+                    likelihood="high" if finding.basis == "live" else "moderate",
+                    reasons=finding.criteria,
+                    check_next=[
+                        "Measure temperature (no antipyretic in the last 24 h)",
+                        "Notify the LGA disease surveillance officer for Lassa testing",
+                    ],
+                    citations=[*case_def, *place],
                     source="rule",
                 ),
             )
         actions.insert(
             0,
             ActionItem(
-                text=LASSA_IPC_REMINDER, citations=[sig.url] if sig.url else [], source="rule"
+                text=LASSA_IPC_REMINDER,
+                citations=[*_anchors(deps, [LASSA_TRIAGE_ANCHOR]), *place],
+                source="rule",
             ),
         )
+    if level == TriageLevel.TREAT_MONITOR and status == "complete":
+        for text, anchors in treat_monitor_advice(case):
+            actions.append(ActionItem(text=text, citations=_anchors(deps, anchors), source="rule"))
 
     # 3. Strip any dose text the model produced.
     stripped = [0]
@@ -233,9 +265,13 @@ def rules_post(state: TriageState, deps: Deps) -> dict[str, Any]:
             f"Removed {stripped[0]} dose mention(s) from model output; use the dose table."
         )
 
+    # 3b. One piece of advice per topic: rule wording wins, model detail appended.
+    actions, merged = merge_advice(actions)
+
     # 4. Keep only citations that resolve to a stored chunk or a current outbreak signal.
     resolved: dict[str, Citation] = {}
     dropped = 0
+    dropped_refs: list[str] = []
 
     def resolve(refs: list[str]) -> list[str]:
         nonlocal dropped
@@ -244,10 +280,11 @@ def rules_post(state: TriageState, deps: Deps) -> dict[str, Any]:
             cite = _resolve_citation(ref, deps, signals)
             if cite is None:
                 dropped += 1
+                dropped_refs.append(ref[:80])
                 continue
-            resolved.setdefault(ref, cite)
-            kept.append(ref)
-        return kept
+            resolved.setdefault(cite.ref, cite)
+            kept.append(cite.ref)
+        return list(dict.fromkeys(kept))
 
     for d in differential:
         d.citations = resolve(d.citations)
@@ -268,6 +305,10 @@ def rules_post(state: TriageState, deps: Deps) -> dict[str, Any]:
         warnings.append(ctx.message if ctx else "Outbreak data unavailable.")
     elif ctx.source == "mock":
         warnings.append("Outbreak data is MOCK test data, not live surveillance.")
+    if ctx is not None and ctx.baseline and not deps.outbreak.endemicity.all_verified:
+        warnings.append(
+            "Baseline endemicity list is provisional (not yet verified against NCDC sources)."
+        )
     if state.retrieval_note:
         warnings.append(state.retrieval_note)
 
@@ -284,11 +325,44 @@ def rules_post(state: TriageState, deps: Deps) -> dict[str, Any]:
         warnings=warnings,
     )
     floor = rules.floor.value if rules.floor else None
-    note = f"floor={floor}, dropped_citations={dropped}, stripped_doses={stripped[0]}"
+    lassa = rules.lassa.basis if rules.lassa else None
+    note = (
+        f"floor={floor}, lassa={lassa}, merged_advice={merged}, "
+        f"dropped_citations={dropped}, stripped_doses={stripped[0]}"
+    )
+    if dropped_refs:  # citation IDs/URLs only, never patient text
+        note += f", dropped={dropped_refs[:5]}"
     return {"post": post, "_note": note}
 
 
+def _anchors(deps: Deps, anchors: list[tuple[str, str]]) -> list[str]:
+    """Chunk IDs for guideline anchor phrases that are present in the index."""
+    if deps.store is None:
+        return []
+    refs = []
+    for doc_id, phrase in anchors:
+        chunk = deps.store.find(doc_id, phrase)
+        if chunk is not None:
+            refs.append(chunk.id)
+    return refs
+
+
+_CHUNK_ID = re.compile(r"[a-z0-9][a-z0-9-]*:\d{4}")
+_URL = re.compile(r"https?://[^\s\])>,;\"']+")
+
+
+def _normalise_ref(ref: str) -> str:
+    """Tolerate formatting around a valid ID: "[ncdc-lassa:0002] (p.8)" -> "ncdc-lassa:0002"."""
+    ref = ref.strip()
+    if (url := _URL.search(ref)) is not None:
+        return url.group(0).rstrip(".")
+    if (chunk_id := _CHUNK_ID.search(ref)) is not None:
+        return chunk_id.group(0)
+    return ref
+
+
 def _resolve_citation(ref: str, deps: Deps, signals: list) -> Citation | None:
+    ref = _normalise_ref(ref)
     if deps.store is not None and (chunk := deps.store.get(ref)) is not None:
         return Citation(
             kind="guideline",
@@ -297,6 +371,7 @@ def _resolve_citation(ref: str, deps: Deps, signals: list) -> Citation | None:
             doc_id=chunk.doc_id,
             section=chunk.section,
             page=chunk.page,
+            page_end=chunk.page_end,
         )
     for sig in signals:
         if sig.url and ref == sig.url:

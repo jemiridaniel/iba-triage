@@ -52,20 +52,26 @@ def guideline_pdf(tmp_path: Path) -> Path:
 # --- sources ----------------------------------------------------------------
 
 
-def test_repo_sources_yaml_lists_the_six_documents() -> None:
-    sources = load_sources(REPO / "data" / "sources.yaml")
-    assert [s.doc_id for s in sources] == [
+def test_repo_sources_yaml_register() -> None:
+    sources = {s.doc_id: s for s in load_sources(REPO / "data" / "sources.yaml")}
+    assert {
         "nmep-malaria",
         "who-malaria",
-        "ncdc-lassa",
-        "ncdc-cholera",
-        "ncdc-csm",
         "who-imci",
-    ]
-    for s in sources:
-        assert s.edition and s.licence_note
+        "ncdc-lassa",
+        "ncdc-vhf-ipc",
+        "ncdc-lassa-advisory-2026",
+        "ncdc-csm",
+        "ncdc-csm-quickref",
+        "ncdc-cholera",
+        "ncdc-case-definitions",
+    } == set(sources)
+    for s in sources.values():
+        assert s.edition and s.licence and s.licence_note
         assert s.commit_text is False
-        assert s.url_confirmed is False  # placeholders until a human confirms them
+        assert s.url_confirmed is (s.doc_id != "nmep-malaria")
+        if s.doc_id.startswith("who-"):
+            assert s.licence == "CC BY-NC-SA 3.0 IGO"
 
 
 # --- extraction + headings --------------------------------------------------
@@ -212,3 +218,19 @@ def test_build_index_with_no_pdfs_exits(tmp_path: Path) -> None:
         build_index(
             [Source(doc_id="x", title="X", file="x.pdf")], tmp_path, tmp_path, FakeEmbedder(), "m"
         )
+
+
+def test_table_of_contents_lines_are_dropped() -> None:
+    pages = [
+        "\n".join(
+            [
+                "1.1.2 Suspected case ........................................ 7",
+                "3.4 Treatment …………… 19",
+                "1.1.2 Suspected case",
+                "Patient with fever for 3-21 days.",
+            ]
+        )
+    ]
+    (chunk,) = chunk_document("d", "T", pages)
+    assert "......" not in chunk.text and "……" not in chunk.text
+    assert chunk.sections == ["1.1.2 Suspected case"]

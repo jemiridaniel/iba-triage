@@ -33,6 +33,12 @@ FOLLOW_UPS: dict[str, dict[str, str]] = {
         "en": "What was the malaria RDT result: positive, negative, or not done?",
         "pcm": "Wetin malaria RDT show: positive, negative, or dem never do am?",
     },
+    "treatment_response": {
+        "en": "Has the patient taken antimalarials or antibiotics for this fever? "
+        "Did the fever get better?",
+        "pcm": "The patient don take malaria drug or antibiotic for this fever? "
+        "The fever don reduce?",
+    },
 }
 
 
@@ -68,7 +74,9 @@ Nigerian Pidgin) into ONE JSON object matching the schema below. Reply with the 
 - fever_days: duration of fever in days ("hot body 4 days" -> 4).
 - symptoms: short English phrases for what is described.
 - danger_signs: only codes from the schema's enum, only when clearly described.
-- antimalarial_no_response: true only if antimalarials were taken without improvement.
+- antimalarial_taken / antibiotic_taken: true or false only if stated.
+- antimalarial_no_response / antibiotic_no_response: true only if that treatment was taken \
+and the fever did not improve; false if it improved.
 - language: "pcm" if the text is Nigerian Pidgin, else "en".
 Schema:
 """
@@ -97,8 +105,9 @@ Hard rules:
 a citation. Cite at least one source for each differential item and action where possible.
 3. If the rules found danger signs, triage_level must be "refer_now". You may raise the \
 triage level above the rule floor, never lower it.
-4. Weigh active outbreaks in the patient's state. If an outbreak disease fits the \
-presentation, include it in the differential and give its isolation/referral steps.
+4. Weigh active outbreaks (live) and baseline endemicity in the patient's state. If a \
+disease that is active or endemic there fits the presentation, include it in the \
+differential and give its isolation/referral steps. Live signals weigh more than baseline.
 5. differential: 2-4 conditions, most likely first, each with reasons and what to check next.
 6. actions: short, concrete steps the health worker can take now.
 7. triage_level: "refer_now" (emergency), "refer_24h" (needs facility review within a day), \
@@ -121,7 +130,7 @@ def reason_messages(
         for h in hits
     ]
     if outbreak is None or outbreak.status != "ok":
-        outbreak_text = "Outbreak data unavailable. Do not assume any outbreak status."
+        outbreak_text = "Live outbreak data unavailable. Do not assume any live outbreak status."
     elif not outbreak.signals:
         outbreak_text = "Checked; no current outbreak signals found for this state."
     else:
@@ -129,15 +138,25 @@ def reason_messages(
             f"- {s.disease} in {s.state}: {s.status}, reported {s.report_date} [{s.url}]"
             for s in outbreak.signals
         )
+    baseline = outbreak.baseline if outbreak is not None else []
+    baseline_text = (
+        "\n".join(
+            f"- {s.disease}: {s.state} is an endemic/high-burden state"
+            + (" and this is its usual peak season" if s.in_season else "")
+            + (f" [{s.citation}]" if s.citation else "")
+            for s in baseline
+        )
+        or "None listed for this state."
+    )
     rules = {
         "danger_signs": [h.label for h in pre.danger_signs],
         "triage_floor": pre.floor.value if pre.floor else None,
-        "lassa_suspected_by_rule": pre.lassa_signal is not None,
     }
     user = (
         f"CASE:\n{case.model_dump_json(exclude_none=True)}\n\n"
         f"RULE FINDINGS:\n{json.dumps(rules)}\n\n"
-        f"OUTBREAK SIGNALS:\n{outbreak_text}\n\n"
+        f"LIVE OUTBREAK SIGNALS:\n{outbreak_text}\n\n"
+        f"BASELINE ENDEMICITY (static, not live):\n{baseline_text}\n\n"
         "GUIDELINE EXCERPTS:\n" + ("\n\n".join(excerpts) if excerpts else "None available.")
     )
     return [
