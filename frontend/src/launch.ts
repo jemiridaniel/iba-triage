@@ -1,13 +1,16 @@
 /** Removes the inline launch screen (index.html #launch) once the app has mounted.
  *
  * First load of a browser session: hold for at least LAUNCH_MIN_MS from first paint (or until
- * the app mounts, whichever is later), so it reads as a launch screen rather than a flicker.
+ * the app mounts, whichever is later), so the logo assembly animation completes rather than
+ * flickering. If the app is still not ready by then, the dot keeps doing an idle hop.
  * Later loads in the same session: remove as soon as the app mounts.
  * A tap anywhere on the launch screen dismisses it at once (index.html handles taps that
  * happen before this bundle loads).
  */
 
-export const LAUNCH_MIN_MS = 1200; // minimum visible time on a session's first load
+// The assembly animation in index.html runs ~1,400 ms (stem 0-450, dot 380-1400, wordmark
+// 1150-1400); hold a little longer so it never gets cut off mid-bounce.
+export const LAUNCH_MIN_MS = 1550;
 export const FADE_MS = 300;
 
 const SESSION_KEY = "iba.launched";
@@ -58,6 +61,7 @@ export function dismissLaunchScreen(): void {
     return;
   }
   el.addEventListener("click", () => remove(el), { once: true });
+  el.classList.add("iba-mounted"); // stops the idle hop; the sequence itself still finishes
 
   const firstLoad = !seenThisSession();
   markSeen();

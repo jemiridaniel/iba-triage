@@ -113,12 +113,31 @@ def test_launch_screen_handles_dark_mode_and_reduced_motion() -> None:
 
 def test_launch_screen_timing_and_safety_net() -> None:
     launch = (REPO / "frontend" / "src" / "launch.ts").read_text(encoding="utf-8")
-    assert "export const LAUNCH_MIN_MS = 1200" in launch  # single tunable constant
+    assert "export const LAUNCH_MIN_MS = 1550" in launch  # single tunable constant
     assert "sessionStorage" in launch and "catch" in launch  # first-load-only, storage-safe
     main = (REPO / "frontend" / "src" / "main.tsx").read_text(encoding="utf-8")
     assert "dismissLaunchScreen()" in main
     assert "requestAnimationFrame" in main  # dismissed on mount, not on a timer
     assert "setTimeout" not in main  # the hold lives in launch.ts, not the mount path
+
+
+def test_launch_animation_is_transform_only_and_accessible() -> None:
+    style = re.search(r"<style>(.*?)</style>", INDEX, re.DOTALL).group(1)
+    for name in ("iba-stem", "iba-dot", "iba-idle", "iba-rise"):
+        assert f"@keyframes {name}" in style
+    keyframes = re.findall(r"@keyframes .*?\n      \}", style, re.DOTALL)
+    for block in keyframes:  # only transform/opacity animate: cheap on low-end phones
+        props = set(re.findall(r"^\s*([a-z-]+):", block, re.MULTILINE))
+        assert props <= {"transform", "opacity", "animation-timing-function"}, props
+    assert 'role="img"' in INDEX and 'aria-label="Ib\u00e0 is loading"' in INDEX
+    assert ".iba-mounted .iba-dot-idle" in style  # idle hop stops on mount
+    assert "iba-dots" not in INDEX  # the pulsing dots are gone
+
+
+def test_reduced_motion_shows_the_finished_logo() -> None:
+    style = re.search(r"<style>(.*?)</style>", INDEX, re.DOTALL).group(1)
+    reduced = style.split("prefers-reduced-motion: reduce")[1]
+    assert "animation: none" in reduced and "opacity: 1" in reduced and "transform: none" in reduced
 
 
 def test_launch_screen_inline_script_handles_taps_and_the_hard_timeout() -> None:

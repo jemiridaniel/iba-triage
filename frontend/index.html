@@ -28,7 +28,12 @@
           media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
     <title>Ibà · Fever Triage</title>
     <style>
-      /* Launch screen: inline, no external fonts or images, so it paints before the bundle. */
+      /* Launch screen: inline, no external fonts or images, so it paints before the bundle.
+         The mark is assembled on screen: the stem drops and lands, the dot bounces off the
+         top of the stem and settles into its gap, then the wordmark fades in (~1,400 ms).
+         Geometry matches icon.svg: dot bottom = 11.9 + 4.9 = 16.8, stem top = 20.8, so the
+         dot travels 4 user units past its resting place to touch the stem.
+         Only transform and opacity are animated (cheap on low-end Android). */
       #launch {
         position: fixed;
         inset: 0;
@@ -47,37 +52,99 @@
         transition: opacity 300ms ease-out;
       }
       #launch.iba-hide { opacity: 0; }
-      #launch svg { width: 88px; height: 88px; }
+      #launch .iba-logo { width: 88px; height: 88px; overflow: visible; }
       #launch .iba-word { font-size: 40px; font-weight: 800; letter-spacing: -0.02em; }
       #launch .iba-tag { font-size: 15px; line-height: 1.4; max-width: 18rem; opacity: 0.85; }
-      #launch .iba-dots { display: flex; gap: 6px; margin-top: 6px; }
-      #launch .iba-dots i {
-        width: 8px; height: 8px; border-radius: 9999px; background: #fff; opacity: 0.45;
-        animation: iba-pulse 1.1s ease-in-out infinite;
+
+      #launch .iba-stem,
+      #launch .iba-dot,
+      #launch .iba-dot-idle {
+        transform-box: view-box;
       }
-      #launch .iba-dots i:nth-child(2) { animation-delay: 0.15s; }
-      #launch .iba-dots i:nth-child(3) { animation-delay: 0.3s; }
-      @keyframes iba-pulse { 50% { opacity: 1; transform: translateY(-3px); } }
+      /* bottom-centre origins: squash compresses towards the ground */
+      #launch .iba-stem { transform-origin: 32px 42.4px; animation: iba-stem 450ms both; }
+      #launch .iba-dot { transform-origin: 32px 16.8px; animation: iba-dot 1020ms 380ms both; }
+      #launch .iba-dot-idle {
+        transform-origin: 32px 16.8px;
+        animation: iba-idle 1200ms 1400ms infinite both;
+      }
+      #launch .iba-word,
+      #launch .iba-tag {
+        opacity: 0;
+        animation: iba-rise 250ms 1150ms ease-out both;
+      }
+      #launch .iba-tag { animation-delay: 1250ms; }
+      /* the app has mounted: stop the idle hop */
+      #launch.iba-mounted .iba-dot-idle { animation: none; }
+
+      @keyframes iba-stem {
+        0% { transform: translateY(-46px) scaleY(1); animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
+        62% { transform: translateY(0) scaleY(1); animation-timing-function: ease-out; }
+        76% { transform: translateY(0) scale(1.07, 0.92); animation-timing-function: ease-in-out; }
+        88% { transform: translateY(0) scale(0.98, 1.03); }
+        100% { transform: translateY(0) scale(1, 1); }
+      }
+      @keyframes iba-dot {
+        /* fall */
+        0% { transform: translateY(-46px) scale(1, 1); animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
+        /* impact 1: touches the stem (4px past rest), squash */
+        26% { transform: translateY(4px) scale(1.25, 0.75); animation-timing-function: ease-out; }
+        30% { transform: translateY(-6px) scale(0.88, 1.12); animation-timing-function: ease-out; }
+        /* apex 1 (~60% of the drop) */
+        44% { transform: translateY(-26px) scale(1, 1); animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
+        58% { transform: translateY(4px) scale(1.2, 0.8); animation-timing-function: ease-out; }
+        62% { transform: translateY(-2px) scale(0.92, 1.08); animation-timing-function: ease-out; }
+        /* apex 2 (~25%) */
+        70% { transform: translateY(-8.5px) scale(1, 1); animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
+        80% { transform: translateY(4px) scale(1.15, 0.85); animation-timing-function: ease-out; }
+        /* apex 3 (~8%) */
+        87% { transform: translateY(0) scale(0.96, 1.04); animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
+        93% { transform: translateY(4px) scale(1.08, 0.92); animation-timing-function: ease-out; }
+        100% { transform: translateY(0) scale(1, 1); }
+      }
+      @keyframes iba-idle {
+        0%, 62%, 100% { transform: translateY(0) scale(1, 1); }
+        10% { transform: translateY(-3px) scale(0.96, 1.04); animation-timing-function: ease-in; }
+        22% { transform: translateY(4px) scale(1.12, 0.88); animation-timing-function: ease-out; }
+        34% { transform: translateY(0) scale(1, 1); }
+      }
+      @keyframes iba-rise {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
       @media (prefers-color-scheme: dark) {
         #launch { background: #0b3d3a; }
       }
       @media (prefers-reduced-motion: reduce) {
+        /* show the finished logo and wordmark, no motion at all */
         #launch { transition: none; }
-        #launch .iba-dots i { animation: none; opacity: 0.7; }
+        #launch .iba-stem,
+        #launch .iba-dot,
+        #launch .iba-dot-idle,
+        #launch .iba-word,
+        #launch .iba-tag {
+          animation: none;
+          opacity: 1;
+          transform: none;
+        }
       }
     </style>
   </head>
   <body>
     <div id="root"></div>
     <div id="launch" role="status" aria-live="polite" aria-label="Ibà is starting">
-      <svg viewBox="0 0 64 64" aria-hidden="true">
+      <svg class="iba-logo" viewBox="0 0 64 64" role="img" aria-label="Ibà is loading">
         <rect width="64" height="64" rx="14" fill="#0d4e4a" />
-        <circle cx="32" cy="11.9" r="4.9" fill="#fff" />
-        <rect x="27.1" y="20.8" width="9.8" height="21.6" rx="4.9" fill="#fff" />
+        <g class="iba-dot-idle">
+          <g class="iba-dot"><circle cx="32" cy="11.9" r="4.9" fill="#fff" /></g>
+        </g>
+        <g class="iba-stem">
+          <rect x="27.1" y="20.8" width="9.8" height="21.6" rx="4.9" fill="#fff" />
+        </g>
       </svg>
       <div class="iba-word">Ibà</div>
       <div class="iba-tag">Fever triage for primary health workers</div>
-      <div class="iba-dots" aria-hidden="true"><i></i><i></i><i></i></div>
     </div>
     <script>
       // Runs before the bundle: note first paint, allow tap-to-dismiss, and keep a hard

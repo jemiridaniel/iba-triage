@@ -91,6 +91,18 @@ describe("dismissLaunchScreen", () => {
     expect(el.classList.contains("iba-hide")).toBe(false); // no fade class
   });
 
+  it("stops the idle hop as soon as the app mounts", () => {
+    const el = mountLaunchScreen();
+    dismissLaunchScreen();
+    expect(el.classList.contains("iba-mounted")).toBe(true); // CSS: .iba-mounted -> no idle
+    expect(el.classList.contains("iba-hide")).toBe(false); // sequence still finishing
+  });
+
+  it("holds long enough for the assembly animation to finish", () => {
+    expect(LAUNCH_MIN_MS).toBeGreaterThanOrEqual(1400 + 100); // sequence + margin
+    expect(LAUNCH_MIN_MS).toBeLessThanOrEqual(2000); // still feels like a launch, not a wait
+  });
+
   it("clears the 4s safety timeout set in index.html", () => {
     mountLaunchScreen();
     const clear = vi.spyOn(globalThis, "clearTimeout");
