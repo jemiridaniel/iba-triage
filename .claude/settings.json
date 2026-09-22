@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv --version)",
+      "Read(//opt/homebrew/bin/**)",
+      "Bash(pyenv versions *)",
+      "Bash(curl -LsSf https://astral.sh/uv/install.sh)",
+      "Bash(sh)"
+    ]
+  }
+}

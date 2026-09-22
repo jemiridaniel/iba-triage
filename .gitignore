@@ -1,0 +1,28 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Dev caches (LLM + Tavily responses)
+.cache/
+
+# Built guideline index and raw source documents (licence-dependent; see data/sources.yaml)
+data/index/
+data/raw/
+*.pdf
+
+# Frontend
+node_modules/
+frontend/dist/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/

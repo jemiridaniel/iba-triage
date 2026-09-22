@@ -1,0 +1,45 @@
+[project]
+name = "iba-triage"
+version = "0.1.0"
+description = "Iba: fever-triage copilot for primary health care workers in Nigeria (decision support, not diagnosis)."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.8",
+    "pydantic-settings>=2.4",
+    "openai>=1.40",
+    "tavily-python>=0.5",
+    "langgraph>=0.2",
+    "numpy>=2.0",
+    "pyyaml>=6.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.6",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-m 'not live'"
+markers = [
+    "live: calls real Token Factory / Tavily APIs and spends credits (opt in with `pytest -m live`)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
