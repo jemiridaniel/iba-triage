@@ -1,0 +1,254 @@
+{
+ "_note": "Real Token Factory responses (2026-09-22) to the synthetic SPEC \u00a72 sample only: 'Pikin 3 years, hot body 4 days, vomit everything, RDT negative, e don dey sleep too much'. No patient data.",
+ "cases": {
+  "lightning_reasoning_default_truncated": {
+   "model": "nvidia/Nemotron-3_5-Lightning",
+   "description": "default: reasoning never finished; raw reasoning (with a draft JSON) spilled into content",
+   "response": {
+    "id": "chatcmpl-4d631a90",
+    "choices": [
+     {
+      "finish_reason": "length",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+       "content": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - Input text: \"Pikin 3 years, hot body 4 days, vomit everything, RDT negative, e don dey sleep too much\"\n   - Language: This looks like Nigerian Pidgin English (\"Pikin\" = child, \"e don dey sleep too much\" = has been sleeping too much). I need to set language to 'pcm' as instructed.\n   - Key info extracted:\n     - Age: 3 years\n     - Fever duration: 4 days (\"hot body 4 days\")\n     - Symptom: vomit everything\n     - RDT result: negative\n     - Additional: \"e don dey sleep too much\" -> lethargy or excessive sleepiness\n     - No mention of temperature in Celsius, sex, weight, pregnancy, state, LGA, antimalarial taken, etc.\n\n2.  **Map to Schema:**\n   - `age_years`: 3 (number)\n   - `sex`: null (not mentioned)\n   - `weight_kg`: null (not mentioned)\n   - `pregnant`: null (not applicable/mentioned, but for a 3-year-old, null)\n   - `fever_days`: 4\n   - `temperature_c`: null (not provided)\n   - `rdt_result`: \"negative\"\n   - `symptoms`: [\"vomit everything\"] - wait, schema says symptoms items are strings. \"vomit everything\" fits. Also \"sleep too much\" might be a symptom/sign. I'll list relevant ones. Let's check schema: `symptoms` is array of strings. I should include what's described. \"vomit everything\" and maybe \"lethargy\" but I'll stick to what's explicitly said. Actually, \"e don dey sleep too much\" indicates lethargy/excessive sleep. I'll include \"vomit everything\" and maybe \"lethargy\" but to be safe, I'll list \"vomit everything\" and note excessive sleep in danger_signs? Danger signs enum includes \"lethargy_or_unconsciousness\". That's a danger sign, not a symptom per se. I'll put \"vomit everything\" in symptoms, and \"lethargy_or_unconsciousness\" in danger_signs if appropriate. But \"sleep too much\" could be lethargy. I'll use danger_signs for that.\n   - `danger_signs`: [\"lethargy_or_unconsciousness\"] maybe? The text says \"e don dey sleep too much\" which is excessive sleepiness/lethargy. I'll include it.\n   - `antimalarial_taken`: null (not mentioned)\n   - `antimalarial_no_response`: null (not mentioned)\n   - `state`: null\n   - `lga`: null\n   - `language`: \"pcm\" (as instructed if text is Pidgin)\n   - `missing_fields`: any of age_years, fever_days, rdt_result that are unknown. All three are known: age_years=3, fever_days=4, rdt_result=\"negative\". So missing_fields should be [].\n\n   Let's double-check schema constraints:\n   - `age_years`: number, default null. I have 3.\n   - `sex`: null\n   - `weight_kg`: null\n   - `pregnant`: null\n   - `fever_days`: number, default null. I have 4.\n   - `temperature_c`: null\n   - `rdt_result`: enum [\"positive\",\"negative\",\"not_done\"], default null. I have \"negative\".\n   - `symptoms`: array of strings, default []. I'll put [\"vomit everything\"].\n   - `danger_signs`: array of DangerSignCode. I'll put [\"lethargy_or_unconsciousness\"] because \"sleep too much\" maps to lethargy.\n   - `antimalarial_taken`: null\n   - `antimalarial_no_response`: null\n   - `state`: null\n   - `lga`: null\n   - `language`: \"pcm\"\n   - `missing_fields`: array of strings. Since age_years, fever_days, rdt_result are all provided, this should be [].\n\n   Wait, should I include \"vomit everything\" in symptoms or danger_signs? Schema has both. \"vomit everything\" is explicitly a symptom, and it's also in danger_signs enum as \"vomiting_everything\". So I could put it in either or both. But better to follow exact mapping. The text says \"vomit everything\", schema has \"vomiting_everything\" as danger sign. I'll put \"vomit everything\" in symptoms, and maybe not in danger_signs unless it's severe. But the instruction says: \"Use null for unknown values; do not guess.\" I shouldn't map \"vomit everything\" to danger_sign unless clearly indicated. However, \"e don dey sleep too much\" maps to lethargy, which is a danger sign. I'll put \"lethargy_or_unconsciousness\" in danger_signs. For symptoms, I'll put [\"vomit everything\"].\n\n   Let's re-read carefully: \"Pikin 3 years, hot body 4 days, vomit everything, RDT negative, e don dey sleep too much\"\n   - age_years: 3\n   - fever_days: 4\n   - rdt_result: \"negative\"\n   - symptoms: [\"vomit everything\"] (or maybe just include the string as is)\n   - danger_signs: [\"lethargy_or_unconsciousness\"] (because sleeping too much = lethargy)\n   - language: \"pcm\"\n   - missing_fields: [] (since age, fever days, rdt result are all present)\n\n   Check if any required fields? Schema doesn't have required, but properties have defaults. I'll output all fields as per schema, with null for unknown.\n\n   Let's construct JSON carefully:\n   {\n     \"age_years\": 3,\n     \"sex\": null,\n     \"weight_kg\": null,\n     \"pregnant\": null,\n     \"fever_days\": 4,\n     \"temperature_c\": null,\n     \"rdt_result\": \"negative\",\n     \"symptoms\": [\"vomit everything\"],\n     \"danger_signs\": [\"lethargy_or_unconsciousness\"],\n     \"antimalarial_taken\": null,\n     \"antimalarial_no_response\": null,\n     \"state\": null,\n     \"lga\": null,\n     \"language\": \"pcm\",\n     \"missing_fields\": []\n   }\n\n   Wait, should \"vomit everything\" be in symptoms or danger_signs? The enum for danger_signs includes \"vomiting_everything\". The text says \"vomit everything\". It's a description of a symptom. I'll put it in symptoms as \"vomit everything\", and maybe not in danger_signs unless I'm sure it's a danger sign. But the schema allows both. I'll just put it in symptoms. For danger_signs, I",
+       "refusal": null,
+       "role": "assistant",
+       "annotations": null,
+       "audio": null,
+       "function_call": null,
+       "tool_calls": null,
+       "reasoning": null,
+       "reasoning_content": null
+      },
+      "stop_reason": null,
+      "token_ids": null
+     }
+    ],
+    "created": 1790070347,
+    "model": "nvidia/Nemotron-3_5-Lightning",
+    "object": "chat.completion",
+    "metadata": null,
+    "moderation": null,
+    "service_tier": null,
+    "system_fingerprint": null,
+    "usage": {
+     "completion_tokens": 1500,
+     "prompt_tokens": 746,
+     "total_tokens": 2246,
+     "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 1500,
+      "rejected_prediction_tokens": null,
+      "text_tokens": null
+     },
+     "prompt_tokens_details": null,
+     "prompt_cache_hit_tokens": 0,
+     "prompt_cache_miss_tokens": 746
+    },
+    "prompt_logprobs": null,
+    "prompt_token_ids": null,
+    "kv_transfer_params": null,
+    "ec_transfer_params": null
+   }
+  },
+  "lightning_reasoning_stripped_answer_truncated": {
+   "model": "nvidia/Nemotron-3_5-Lightning",
+   "description": "reasoning finished (1478 tokens, stripped, not returned); answer cut off",
+   "response": {
+    "id": "chatcmpl-fa94ff9b",
+    "choices": [
+     {
+      "finish_reason": "length",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+       "content": "{\n  \"age_years\": 3,\n  \"sex\": null,\n  \"weight_kg",
+       "refusal": null,
+       "role": "assistant",
+       "annotations": null,
+       "audio": null,
+       "function_call": null,
+       "tool_calls": null,
+       "reasoning": "Here's a thinking process:\n\n1.  **Analyze the User's Complaint:**\n   - The user says my previous reply didn't match the required JSON schema.\n   - Error: `Invalid JSON: key must be a string at line 1 column 2`\n   - This suggests my previous output might have had parsing issues, maybe not valid JSON at all, or keys weren't strings, or structure was off.\n   - User wants me to reply again with only the corrected JSON object.\n\n2.  **Review the Original Task & Schema:**\n   - Schema is complex, with `$defs`, properties, etc.\n   - I need to output a valid JSON object matching the `PatientCase` schema (the root level, not the `$defs`).\n   - Key properties from schema:\n     - `age_years`: number or null\n     - `sex`: string (\"male\"/\"female\") or null\n     - `weight_kg`: number or null\n     - `pregnant`: boolean or null\n     - `fever_days`: number or null\n     - `temperature_c`: number or null\n     - `rdt_result`: string (\"positive\"/\"negative\"/\"not_done\") or null\n     - `symptoms`: array of strings, default []\n     - `danger_signs`: array of strings from DangerSignCode enum\n     - `antimalarial_taken`: boolean or null\n     - `antimalarial_no_response`: boolean or null\n     - `state`: string or null\n     - `lga`: string or null\n     - `language`: string, default \"en\", enum [\"en\", \"pcm\"]\n     - `missing_fields`: array of strings, default []\n\n   - Input text: \"Pikin 3 years, hot body 4 days, vomit everything, RDT negative, e don dey sleep too much\"\n   - Language: Pidgin -> set to \"pcm\"\n   - Parsed values:\n     - age_years: 3\n     - fever_days: 4\n     - rdt_result: \"negative\"\n     - danger_signs: \"vomiting_everything\" (from \"vomit everything\"), \"lethargy_or_unconsciousness\" (from \"sleep too much\" = lethargy)\n     - symptoms: maybe [] (not explicitly listed beyond those)\n     - Other fields: null (unknown)\n     - language: \"pcm\"\n     - missing_fields: [] (since age_years, fever_days, rdt_result are known)\n\n3.  **Identify Possible Previous Error:**\n   - The error \"key must be a string at line 1 column 2\" usually means the JSON started with something not a string, like a number or null without a key, or maybe I outputted just a value instead of an object, or had trailing commas, or used non-string keys.\n   - Maybe my previous output had `null` as a top-level value without being inside a proper object structure, or the JSON parser got confused.\n   - I need to output strictly valid JSON, with all keys as strings, no comments, no trailing commas, proper quoting.\n\n4.  **Construct Correct JSON:**\n   Let's carefully build the JSON object per schema. I'll include all required properties, using null for unknowns, and the specific values from the text.\n\n   Schema property names must be exact strings. I'll list them all, even if null.\n\n   Properties to include:\n   - \"age_years\": 3\n   - \"sex\": null\n   - \"weight_kg\": null\n   - \"pregnant\": null\n   - \"fever_days\": 4\n   - \"temperature_c\": null\n   - \"rdt_result\": \"negative\"\n   - \"symptoms\": []\n   - \"danger_signs\": [\"vomiting_everything\", \"lethargy_or_unconsciousness\"]\n   - \"antimalarial_taken\": null\n   - \"antimalarial_no_response\": null\n   - \"state\": null\n   - \"lga\": null\n   - \"language\": \"pcm\"\n   - \"missing_fields\": []\n\n   Check schema constraints:\n   - `language` default \"en\", enum [\"en\",\"pcm\"] -> \"pcm\" is correct.\n   - `missing_fields` items type string -> [] is fine.\n   - `danger_signs` items ref `$defs/DangerSignCode` -> the enum values are strings, so array of strings is fine.\n   - `rdt_result` anyOf enum [\"positive\",\"negative\",\"not_done\"] or null -> \"negative\" is correct.\n   - `fever_days` minimum 0 number or null -> 4 is correct.\n   - `age_years` number or null -> 3 is correct.\n\n   I'll make sure the JSON is a single object, no extra text.\n\n   Potential pitfall: Maybe `symptoms` should include something? The text says \"vomit everything\" and \"sleep too much\". Those are mapped to danger_signs. Symptoms array could be empty or could include general terms, but schema default is []. I'll keep [].\n\n   Another thing: The schema has `\"$defs\"` but the root case object is `PatientCase`. I just need to output the object matching the properties described, not the `$defs`.\n\n   Let's produce clean JSON:\n\n   ```json\n   {\n     \"age_years\": 3,\n     \"sex\": null,\n     \"weight_kg\": null,\n     \"pregnant\": null,\n     \"fever_days\": 4,\n     \"temperature_c\": null,\n     \"rdt_result\": \"negative\",\n     \"symptoms\": [],\n     \"danger_signs\": [\"vomiting_everything\", \"lethargy_or_unconsciousness\"],\n     \"antimalarial_taken\": null,\n     \"antimalarial_no_response\": null,\n     \"state\": null,\n     \"lga\": null,\n     \"language\": \"pcm\",\n     \"missing_fields\": []\n   }\n   ```\n\n   Check if any property is missing or incorrectly typed.\n   - `age_years`: 3 (number) ok\n   - `sex`: null ok\n   - `weight_kg`: null ok\n   - `pregnant`: null ok\n   - `fever_days`: 4 (number) ok\n   - `temperature_c`: null ok\n   - `rdt_result`: \"negative\" (string) ok\n   - `symptoms`: [] (array of strings) ok\n   - `danger_signs`: array of strings ok\n   - `antimalarial_taken`: null ok\n   - `antimalarial_no_response`: null ok\n   - `state`: null ok\n   - `lga`: null ok\n   - `language`: \"pcm\" (string, enum) ok\n   - `missing_fields`: [] (array of strings) ok\n\n   This looks correct. I'll output exactly this JSON, no wrappers, no explanations.",
+       "reasoning_content": "Here's a thinking process:\n\n1.  **Analyze the User's Complaint:**\n   - The user says my previous reply didn't match the required JSON schema.\n   - Error: `Invalid JSON: key must be a string at line 1 column 2`\n   - This suggests my previous output might have had parsing issues, maybe not valid JSON at all, or keys weren't strings, or structure was off.\n   - User wants me to reply again with only the corrected JSON object.\n\n2.  **Review the Original Task & Schema:**\n   - Schema is complex, with `$defs`, properties, etc.\n   - I need to output a valid JSON object matching the `PatientCase` schema (the root level, not the `$defs`).\n   - Key properties from schema:\n     - `age_years`: number or null\n     - `sex`: string (\"male\"/\"female\") or null\n     - `weight_kg`: number or null\n     - `pregnant`: boolean or null\n     - `fever_days`: number or null\n     - `temperature_c`: number or null\n     - `rdt_result`: string (\"positive\"/\"negative\"/\"not_done\") or null\n     - `symptoms`: array of strings, default []\n     - `danger_signs`: array of strings from DangerSignCode enum\n     - `antimalarial_taken`: boolean or null\n     - `antimalarial_no_response`: boolean or null\n     - `state`: string or null\n     - `lga`: string or null\n     - `language`: string, default \"en\", enum [\"en\", \"pcm\"]\n     - `missing_fields`: array of strings, default []\n\n   - Input text: \"Pikin 3 years, hot body 4 days, vomit everything, RDT negative, e don dey sleep too much\"\n   - Language: Pidgin -> set to \"pcm\"\n   - Parsed values:\n     - age_years: 3\n     - fever_days: 4\n     - rdt_result: \"negative\"\n     - danger_signs: \"vomiting_everything\" (from \"vomit everything\"), \"lethargy_or_unconsciousness\" (from \"sleep too much\" = lethargy)\n     - symptoms: maybe [] (not explicitly listed beyond those)\n     - Other fields: null (unknown)\n     - language: \"pcm\"\n     - missing_fields: [] (since age_years, fever_days, rdt_result are known)\n\n3.  **Identify Possible Previous Error:**\n   - The error \"key must be a string at line 1 column 2\" usually means the JSON started with something not a string, like a number or null without a key, or maybe I outputted just a value instead of an object, or had trailing commas, or used non-string keys.\n   - Maybe my previous output had `null` as a top-level value without being inside a proper object structure, or the JSON parser got confused.\n   - I need to output strictly valid JSON, with all keys as strings, no comments, no trailing commas, proper quoting.\n\n4.  **Construct Correct JSON:**\n   Let's carefully build the JSON object per schema. I'll include all required properties, using null for unknowns, and the specific values from the text.\n\n   Schema property names must be exact strings. I'll list them all, even if null.\n\n   Properties to include:\n   - \"age_years\": 3\n   - \"sex\": null\n   - \"weight_kg\": null\n   - \"pregnant\": null\n   - \"fever_days\": 4\n   - \"temperature_c\": null\n   - \"rdt_result\": \"negative\"\n   - \"symptoms\": []\n   - \"danger_signs\": [\"vomiting_everything\", \"lethargy_or_unconsciousness\"]\n   - \"antimalarial_taken\": null\n   - \"antimalarial_no_response\": null\n   - \"state\": null\n   - \"lga\": null\n   - \"language\": \"pcm\"\n   - \"missing_fields\": []\n\n   Check schema constraints:\n   - `language` default \"en\", enum [\"en\",\"pcm\"] -> \"pcm\" is correct.\n   - `missing_fields` items type string -> [] is fine.\n   - `danger_signs` items ref `$defs/DangerSignCode` -> the enum values are strings, so array of strings is fine.\n   - `rdt_result` anyOf enum [\"positive\",\"negative\",\"not_done\"] or null -> \"negative\" is correct.\n   - `fever_days` minimum 0 number or null -> 4 is correct.\n   - `age_years` number or null -> 3 is correct.\n\n   I'll make sure the JSON is a single object, no extra text.\n\n   Potential pitfall: Maybe `symptoms` should include something? The text says \"vomit everything\" and \"sleep too much\". Those are mapped to danger_signs. Symptoms array could be empty or could include general terms, but schema default is []. I'll keep [].\n\n   Another thing: The schema has `\"$defs\"` but the root case object is `PatientCase`. I just need to output the object matching the properties described, not the `$defs`.\n\n   Let's produce clean JSON:\n\n   ```json\n   {\n     \"age_years\": 3,\n     \"sex\": null,\n     \"weight_kg\": null,\n     \"pregnant\": null,\n     \"fever_days\": 4,\n     \"temperature_c\": null,\n     \"rdt_result\": \"negative\",\n     \"symptoms\": [],\n     \"danger_signs\": [\"vomiting_everything\", \"lethargy_or_unconsciousness\"],\n     \"antimalarial_taken\": null,\n     \"antimalarial_no_response\": null,\n     \"state\": null,\n     \"lga\": null,\n     \"language\": \"pcm\",\n     \"missing_fields\": []\n   }\n   ```\n\n   Check if any property is missing or incorrectly typed.\n   - `age_years`: 3 (number) ok\n   - `sex`: null ok\n   - `weight_kg`: null ok\n   - `pregnant`: null ok\n   - `fever_days`: 4 (number) ok\n   - `temperature_c`: null ok\n   - `rdt_result`: \"negative\" (string) ok\n   - `symptoms`: [] (array of strings) ok\n   - `danger_signs`: array of strings ok\n   - `antimalarial_taken`: null ok\n   - `antimalarial_no_response`: null ok\n   - `state`: null ok\n   - `lga`: null ok\n   - `language`: \"pcm\" (string, enum) ok\n   - `missing_fields`: [] (array of strings) ok\n\n   This looks correct. I'll output exactly this JSON, no wrappers, no explanations."
+      },
+      "stop_reason": null,
+      "token_ids": null
+     }
+    ],
+    "created": 1790070383,
+    "model": "nvidia/Nemotron-3_5-Lightning",
+    "object": "chat.completion",
+    "metadata": null,
+    "moderation": null,
+    "service_tier": null,
+    "system_fingerprint": null,
+    "usage": {
+     "completion_tokens": 1500,
+     "prompt_tokens": 2304,
+     "total_tokens": 3804,
+     "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 1478,
+      "rejected_prediction_tokens": null,
+      "text_tokens": null
+     },
+     "prompt_tokens_details": null,
+     "prompt_cache_hit_tokens": 0,
+     "prompt_cache_miss_tokens": 2304
+    },
+    "prompt_logprobs": null,
+    "prompt_token_ids": null,
+    "kv_transfer_params": null,
+    "ec_transfer_params": null
+   }
+  },
+  "lightning_thinking_off": {
+   "model": "nvidia/Nemotron-3_5-Lightning",
+   "description": "chat_template_kwargs enable_thinking=false",
+   "response": {
+    "id": "chatcmpl-644a7183",
+    "choices": [
+     {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+       "content": "{\n  \"age_years\": 3,\n  \"fever_days\": 4,\n  \"rdt_result\": \"negative\",\n  \"symptoms\": [\"vomiting\"],\n  \"danger_signs\": [\"vomiting_everything\", \"lethargy_or_unconsciousness\"],\n  \"antimalarial_taken\": null,\n  \"antimalarial_no_response\": null,\n  \"state\": null,\n  \"lga\": null,\n  \"language\": \"pcm\",\n  \"missing_fields\": [\"sex\", \"weight_kg\", \"temperature_c\", \"pregnant\"]\n}",
+       "refusal": null,
+       "role": "assistant",
+       "annotations": null,
+       "audio": null,
+       "function_call": null,
+       "tool_calls": null,
+       "reasoning": null,
+       "reasoning_content": null
+      },
+      "stop_reason": null,
+      "token_ids": null
+     }
+    ],
+    "created": 1790070369,
+    "model": "nvidia/Nemotron-3_5-Lightning",
+    "object": "chat.completion",
+    "metadata": null,
+    "moderation": null,
+    "service_tier": null,
+    "system_fingerprint": null,
+    "usage": {
+     "completion_tokens": 125,
+     "prompt_tokens": 746,
+     "total_tokens": 871,
+     "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 0,
+      "rejected_prediction_tokens": null,
+      "text_tokens": null
+     },
+     "prompt_tokens_details": null,
+     "prompt_cache_hit_tokens": 0,
+     "prompt_cache_miss_tokens": 746
+    },
+    "prompt_logprobs": null,
+    "prompt_token_ids": null,
+    "kv_transfer_params": null,
+    "ec_transfer_params": null
+   }
+  },
+  "nano_reasoning_default": {
+   "model": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+   "description": "default: reasoning returned in message.reasoning; reasoning_tokens not reported",
+   "response": {
+    "id": "chatcmpl-2ce246b7-6d2f-43c3-98fd-783494d4a360",
+    "choices": [
+     {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+       "content": "\n{\n  \"age_years\": 3,\n  \"sex\": null,\n  \"weight_kg\": null,\n  \"pregnant\": null,\n  \"fever_days\": 4,\n  \"temperature_c\": null,\n  \"rdt_result\": \"negative\",\n  \"symptoms\": [\n    \"vomiting\",\n    \"excessive sleep\"\n  ],\n  \"danger_signs\": [\n    \"vomiting_everything\",\n    \"lethargy_or_unconsciousness\"\n  ],\n  \"antimalarial_taken\": null,\n  \"antimalarial_no_response\": null,\n  \"state\": null,\n  \"lga\": null,\n  \"language\": \"pcm\",\n  \"missing_fields\": []\n}",
+       "refusal": null,
+       "role": "assistant",
+       "annotations": null,
+       "audio": null,
+       "function_call": null,
+       "tool_calls": [],
+       "reasoning": "We need to output JSON object matching schema. Identify fields:\n\n- age_years: 3 years => number 3\n- sex: not mentioned => null\n- weight_kg: not mentioned => null\n- pregnant: not mentioned => null\n- fever_days: 4 days => number 4\n- temperature_c: not given => null\n- rdt_result: \"negative\" => string \"negative\"\n- symptoms: list of symptoms? The description includes \"vomiting everything\" and maybe \"sleep too much\"? The schema expects array of strings. We can include \"vomiting\" maybe \"excessive sleep\"? But we should only include known symptoms from text. The text: \"vomit everything\" and \"e don dey sleep too much\" (sleep too much). So symptoms could be [\"vomiting\", \"excessive sleep\"]? But we need to be careful: we should not guess. The phrase \"e don dey sleep too much\" indicates excessive sleep, could be a symptom. We can include \"excessive sleep\". But the schema expects array of strings; we can include both. Use lower case? Not specified. Use simple strings.\n\n- danger_signs: list of danger signs from enum. The text includes \"vomit everything\" which is \"vomiting_everything\" in enum. Also \"e don dey sleep too much\" maybe \"lethargy_or_unconsciousness\"? Actually \"sleep too much\" could be lethargy. But not explicit. The enum includes \"lethargy_or_unconsciousness\". The text says \"e don dey sleep too much\" which suggests lethargy. So we can include \"lethargy_or_unconsciousness\". Also \"vomiting_everything\". So danger_signs array includes those two.\n\n- antimalarial_taken: not mentioned => null\n- antimalarial_no_response: not mentioned => null\n- state: not mentioned => null\n- lga: not mentioned => null\n- language: The text is Nigerian Pidgin, so language should be 'pcm'. The schema default is 'en', but we set to 'pcm' if text is Pidgin. So language: \"pcm\"\n- missing_fields: list of any of age_years, fever_days, rdt_result that are unknown. All three are known (age 3, fever_days 4, rdt_result negative). So missing_fields should be empty array [].\n\nCheck required fields: The schema does not specify required, but we need to include all properties. Provide null where unknown.\n\nThus JSON object:\n\n{\n  \"age_years\": 3,\n  \"sex\": null,\n  \"weight_kg\": null,\n  \"pregnant\": null,\n  \"fever_days\": 4,\n  \"temperature_c\": null,\n  \"rdt_result\": \"negative\",\n  \"symptoms\": [\"vomiting\", \"excessive sleep\"],\n  \"danger_signs\": [\"vomiting_everything\", \"lethargy_or_unconsciousness\"],\n  \"antimalarial_taken\": null,\n  \"antimalarial_no_response\": null,\n  \"state\": null,\n  \"lga\": null,\n  \"language\": \"pcm\",\n  \"missing_fields\": []\n}\n\nCheck enum for danger signs: \"vomiting_everything\" is in enum. \"lethargy_or_unconsciousness\" is also in enum. Good.\n\nSymptoms array items are just strings; no enum. Provide as above.\n\nMake sure no extra text. Output only JSON.\n"
+      },
+      "stop_reason": null,
+      "token_ids": null,
+      "routed_experts": null
+     }
+    ],
+    "created": 1790070420,
+    "model": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+    "object": "chat.completion",
+    "metadata": null,
+    "moderation": null,
+    "service_tier": null,
+    "system_fingerprint": "vllm-0.22.0-b08c96cd",
+    "usage": {
+     "completion_tokens": 892,
+     "prompt_tokens": 746,
+     "total_tokens": 1638,
+     "completion_tokens_details": null,
+     "prompt_tokens_details": null
+    },
+    "prompt_logprobs": null,
+    "prompt_token_ids": null,
+    "prompt_text": null,
+    "kv_transfer_params": null
+   }
+  },
+  "nano_thinking_off": {
+   "model": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+   "description": "chat_template_kwargs enable_thinking=false",
+   "response": {
+    "id": "chatcmpl-5189da97-671d-4d2b-8bff-6f3ee22583e2",
+    "choices": [
+     {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+       "content": "{\n  \"age_years\": 3,\n  \"fever_days\": 4,\n  \"rdt_result\": \"negative\",\n  \"symptoms\": [\n    \"vomiting_everything\"\n  ],\n  \"danger_signs\": [\n    \"vomiting_everything\"\n  ],\n  \"antimalarial_taken\": null,\n  \"antimalarial_no_response\": null,\n  \"state\": null,\n  \"lga\": null,\n  \"language\": \"en\",\n  \"missing_fields\": [\n    \"age_years\",\n    \"fever_days\",\n    \"rdt_result\"\n  ]\n}",
+       "refusal": null,
+       "role": "assistant",
+       "annotations": null,
+       "audio": null,
+       "function_call": null,
+       "tool_calls": [],
+       "reasoning": null
+      },
+      "stop_reason": null,
+      "token_ids": null,
+      "routed_experts": null
+     }
+    ],
+    "created": 1790070434,
+    "model": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+    "object": "chat.completion",
+    "metadata": null,
+    "moderation": null,
+    "service_tier": null,
+    "system_fingerprint": "vllm-0.22.0-b08c96cd",
+    "usage": {
+     "completion_tokens": 128,
+     "prompt_tokens": 746,
+     "total_tokens": 874,
+     "completion_tokens_details": null,
+     "prompt_tokens_details": null
+    },
+    "prompt_logprobs": null,
+    "prompt_token_ids": null,
+    "prompt_text": null,
+    "kv_transfer_params": null
+   }
+  }
+ }
+}

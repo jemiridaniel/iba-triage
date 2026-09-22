@@ -49,6 +49,15 @@ class LLMParseError(LLMError):
     """Model output failed schema validation after one corrective retry."""
 
 
+class LLMTruncatedError(LLMParseError):
+    """Reply hit max_tokens (finish_reason="length").
+
+    Never parsed: when a Nemotron reply is cut off mid-reasoning, Token Factory returns the
+    raw reasoning in `content`, often including draft JSON that would parse but is not the
+    answer. Not retried: the same budget truncates again. Fix the step's config instead.
+    """
+
+
 @dataclass
 class CallRecord:
     step: str
@@ -59,6 +68,7 @@ class CallRecord:
     latency_ms: float
     cost_usd: float | None  # None when no price is configured for the model
     cached: bool  # True: served from disk; tokens/latency/cost are from the original call
+    reasoning_tokens: int | None = None  # part of completion_tokens, when reported
 
 
 @dataclass
@@ -198,14 +208,18 @@ class LLMClient:
         temperature: float = 0.0,
         max_tokens: int | None = None,
         json_mode: bool = False,
+        extra_body: dict[str, Any] | None = None,
     ) -> ChatResult:
         """`json_mode` sends response_format=json_object. Off by default: the Nemotron models
-        on Token Factory don't advertise json_mode, so we rely on prompt + validation."""
+        on Token Factory don't advertise json_mode, so we rely on prompt + validation.
+        `extra_body` carries provider-specific fields (e.g. chat_template_kwargs)."""
         _require_model(model, step)
         max_tokens = max_tokens or self.settings.llm_default_max_tokens
         params: dict[str, Any] = {"temperature": temperature, "max_tokens": max_tokens}
         if json_mode:
             params["response_format"] = {"type": "json_object"}
+        if extra_body:
+            params["extra_body"] = extra_body
         key = DiskCache.key({"kind": "chat", "model": model, "messages": messages, **params})
 
         if (hit := self._cache_get(key)) is not None:
@@ -229,6 +243,7 @@ class LLMClient:
             "finish_reason": choice.finish_reason,
             "prompt_tokens": usage.prompt_tokens if usage else 0,
             "completion_tokens": usage.completion_tokens if usage else 0,
+            "reasoning_tokens": _reasoning_tokens(usage),
             "latency_ms": latency_ms,
         }
         self._cache_set(key, entry)
@@ -246,6 +261,7 @@ class LLMClient:
         temperature: float = 0.0,
         max_tokens: int | None = None,
         json_mode: bool = False,
+        extra_body: dict[str, Any] | None = None,
     ) -> tuple[T, list[CallRecord]]:
         """Call the model and validate its JSON against `schema`.
 
@@ -258,8 +274,10 @@ class LLMClient:
             "temperature": temperature,
             "max_tokens": max_tokens,
             "json_mode": json_mode,
+            "extra_body": extra_body,
         }
         first = self.chat(messages, **kwargs)
+        self._reject_truncated(first, step)
         try:
             return schema.model_validate_json(extract_json(first.content)), [first.record]
         except ValidationError as exc:
@@ -284,6 +302,7 @@ class LLMClient:
             },
         ]
         second = self.chat(retry_messages, **{**kwargs, "step": f"{step}:retry"})
+        self._reject_truncated(second, step)
         try:
             return schema.model_validate_json(extract_json(second.content)), [
                 first.record,
@@ -332,6 +351,17 @@ class LLMClient:
             return None
         return (prompt_tokens * price.input + completion_tokens * price.output) / 1_000_000
 
+    def _reject_truncated(self, result: ChatResult, step: str) -> None:
+        if result.finish_reason != "length":
+            return
+        if self.cache is not None:
+            self.cache.delete(result.cache_key)
+        raise LLMTruncatedError(
+            f"{step}: reply truncated at max_tokens ({result.record.completion_tokens} "
+            f"completion tokens, {result.record.reasoning_tokens} reasoning); raise max_tokens "
+            "or turn reasoning off for this step"
+        )
+
     def _guard(self, model: str, step: str, prompt_tokens: int, max_completion: int) -> None:
         price = self.settings.model_prices.get(model)
         if price is None:
@@ -366,6 +396,7 @@ class LLMClient:
             latency_ms=round(float(entry["latency_ms"]), 1),
             cost_usd=self.cost_usd(model, pt, ct),
             cached=cached,
+            reasoning_tokens=entry.get("reasoning_tokens"),
         )
         logger.info(
             "llm step=%s model=%s kind=%s in=%d out=%d latency_ms=%.0f cost_usd=%s cached=%s",
@@ -381,6 +412,12 @@ class LLMClient:
         if (records := _usage.get()) is not None:
             records.append(record)
         return record
+
+
+def _reasoning_tokens(usage: Any) -> int | None:
+    details = getattr(usage, "completion_tokens_details", None) if usage else None
+    value = getattr(details, "reasoning_tokens", None) if details else None
+    return int(value) if value is not None else None
 
 
 def _describe(exc: openai.OpenAIError) -> str:
