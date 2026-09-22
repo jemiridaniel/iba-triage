@@ -1,0 +1,11 @@
+run 1  Child with danger signs          PASS  level=refer_now     banner@1.8s  total 44.4s  $0.0094  fallback=False  verified 7/9
+run 1  Adult, Lassa suspicion (Ondo)    PASS  level=refer_now     banner@0.7s  total 20.5s  $0.0054  fallback=False  verified 6/8
+run 1  Uncomplicated malaria            PASS  level=treat_monitor banner@25.2s  total 26.8s  $0.0071  fallback=False  verified 5/7
+run 2  Child with danger signs          PASS  level=refer_now     banner@0.7s  total 39.6s  $0.0100  fallback=False  verified 0/12
+run 2  Adult, Lassa suspicion (Ondo)    PASS  level=refer_now     banner@0.7s  total 26.9s  $0.0067  fallback=False  verified 5/9
+run 2  Uncomplicated malaria            PASS  level=treat_monitor banner@27.4s  total 28.9s  $0.0074  fallback=False  verified 5/6
+run 3  Child with danger signs          PASS  level=refer_now     banner@0.8s  total 32.6s  $0.0083  fallback=False  verified 6/9
+run 3  Adult, Lassa suspicion (Ondo)    PASS  level=refer_now     banner@0.7s  total 30.4s  $0.0074  fallback=False  verified 7/10
+run 3  Uncomplicated malaria            PASS  level=treat_monitor banner@24.6s  total 26.1s  $0.0065  fallback=False  verified 4/5
+
+9 runs, 0 failures, fallbacks 0; latency p50 28.9s max 44.4s; cost $0.0683

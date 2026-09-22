@@ -151,7 +151,7 @@ OUTBREAK_EXTRACTION = {
             "report_date": "2026-09-10",
             "url": "https://reliefweb.int/report/nigeria/MOCK-cholera-bauchi-2026",
         },
-        # dropped: no date
+        # kept, but recency "unknown": no date in the extraction or the result text
         {
             "disease": "Meningitis",
             "state": "Kebbi",

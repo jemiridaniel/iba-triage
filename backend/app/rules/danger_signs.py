@@ -285,7 +285,15 @@ def _norm_state(state: str) -> str:
 def active_outbreak(
     signals: list[OutbreakSignal], state: str | None, disease: str
 ) -> OutbreakSignal | None:
-    """An active, sourced (URL + date) LIVE outbreak signal for `disease` in `state`."""
+    """An active, sourced, CURRENT live outbreak signal for `disease` in the patient's state.
+
+    Three guards, all deliberate:
+    - `_norm_state(sig.state) == target`: NCDC publishes national sitreps, so a search for one
+      state returns outbreaks in others (FEEDBACK T3). Only the patient's own state escalates.
+    - `sig.recency == "current"`: a report older than 60 days, or one whose date could not be
+      established, informs the differential but never escalates by itself (FEEDBACK T1).
+    - `sig.url`: an unsourced signal is not actionable.
+    """
     if not state:
         return None
     target = _norm_state(state)
@@ -297,6 +305,7 @@ def active_outbreak(
             and sig.status == "active"
             and sig.url
             and sig.report_date
+            and sig.recency == "current"
         ):
             return sig
     return None

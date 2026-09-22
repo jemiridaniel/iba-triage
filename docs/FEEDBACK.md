@@ -31,8 +31,8 @@ Raw responses are saved in [tests/fixtures/nemotron_responses.json](../tests/fix
 | F10 | Nemotron / API | No way to cap or budget reasoning tokens | **High**: truncation breaks structured output |
 | F11 | Serving | Generation throughput varies 3x between identical calls | Medium: p95 latency unpredictable |
 | F12 | Nemotron / API | Model rewrites a URL it was told to copy exactly (adds `www.`) | **High**: a citation is only as good as its URL |
-| T1 | Tavily | `published_date` empty on every result, so recency depends on the LLM reading dates out of page text | **High**: recency is a safety property here |
-| T3 | Tavily | National sitreps yield signals for other states than the patient's | Low (rules filter by state) |
+| T1 | Tavily | `published_date` empty on every result, so recency depends on the LLM reading dates out of page text | **High**: recency is a safety property here (worked around) |
+| T3 | Tavily | National sitreps yield signals for other states than the patient's | Low (rules filter by state; prompt and UI now group them) |
 
 ---
 
@@ -328,6 +328,19 @@ the page, the URL and its own API). Failing that, a documented "date unknown" ma
 callers can tell "no date" from "not extracted". A `min_published_date` filter would let us
 enforce recency server-side rather than after the fact.
 
+**What we shipped** (`backend/app/tools/dates.py`). We stopped asking the model for the date.
+Explicit patterns are read out of the result's title, text and URL slug — ISO dates, "Epi Week
+34" (resolved to that ISO week's Sunday), "week ending DD/MM/YYYY", and long-form dates — and
+the model's answer is used only when it is *older* than what the text says, so a model
+answering "today" can never make a report current. No explicit date anywhere means
+`report_date: null`, which is shown as "date unknown" and cannot escalate triage. A signal
+over `STALE_DAYS` (60) old is labelled "older report" and likewise cannot escalate on its own.
+
+Re-running the same Lagos query afterwards: the five Lassa signals that had been dated "today"
+came back **2026-09-06**, read from the sitrep text. Two WHO bulletin entries that the model
+had also dated "today" resolved to **2024-06-23** and are now correctly marked `older` — a
+two-year-old report that would previously have read as current.
+
 ### T2. `include_domains_mode="restrict"` was exact
 
 **10 of 10 URLs** across both queries were on the allow-list, including subdomains we wanted
@@ -345,9 +358,12 @@ they cost prompt tokens.
 More interesting: NCDC publishes **national** sitreps, so a search for Lagos returns a report
 covering Ondo, Edo, Bauchi, Taraba and Benue. The extractor dutifully emits a signal per state.
 Our deterministic rule matches the patient's own state before it escalates
-(`active_outbreak()`), so a Lagos patient is not escalated on an Ondo outbreak — but the
-reasoning prompt still lists the out-of-state signals. Noted as a risk to watch; see
-"Still to evaluate".
+(`active_outbreak()`), so a Lagos patient is never escalated on an Ondo outbreak.
+
+**What we shipped.** The reasoning prompt now groups signals under "IN THIS PATIENT'S STATE"
+and "ELSEWHERE IN NIGERIA (context only — these must NOT raise this patient's triage level or
+be described as local)", and the UI shows the same two groups, with the second greyed and
+marked "context only". The rule keeps the final say either way.
 
 ### T4. Latency and credits
 
@@ -437,12 +453,26 @@ introduced one over-triage (la-10, Ondo: treat-and-monitor → refer now). The m
 suggested a larger lift because it guaranteed a signal for every state; the real search finds
 one for 8 of 10, which is the honest number.
 
+**2026-09-22, after the T1 and T3 fixes** (same 10 cases, same day's live data):
+
+| | Search off | Live, before fixes | Live, after fixes |
+|---|---|---|---|
+| Lassa in top 3 | 80% | 100% | 100% |
+| Refer now | 70% | 90% | 90% |
+| **Under-triage** | 20% | 10% | **0%** |
+
+Both errors the live search had left went away: la-10 (Ondo) stopped over-triaging once stale
+and out-of-state signals were labelled as such, and la-05 (Lagos) stopped under-triaging once
+the prompt said plainly that the Lassa reports it could see were elsewhere in Nigeria. Demo
+cases: 9/9 again, 0 fallbacks, p50 28.9 s, $0.0683.
+
 ## Still to evaluate
 
 - Ultra: response shape, reasoning control, latency, cost.
 - Serverless Endpoints: cold start, image size limits, scale to zero (week 3).
 - Serverless Jobs for the eval batch (week 4).
-- **T1 follow-up:** whether to reject extracted `report_date` values equal to today when the
-  source text contains an older explicit date, or to fetch dates from the page ourselves.
-- **T3 follow-up:** whether the reasoning prompt should list only the patient's own state's
-  signals, or keep the national picture with the state made explicit.
+- Whether 60 days is the right staleness threshold per disease (Lassa is seasonal; cholera is
+  not), rather than one number for all of them.
+- One transient failure worth watching: on 2026-09-22 the outbreak extraction for Kano failed
+  twice in a row (degraded to "unavailable", nothing cached) and then succeeded minutes later
+  on the same input. No error surfaced beyond the warning log.

@@ -105,8 +105,11 @@ class OutbreakSignal(BaseModel):
     disease: str
     state: str
     status: Literal["active", "declining", "over", "endemic", "unknown"] = "unknown"
-    report_date: date | None = None
+    report_date: date | None = None  # None = the report's date could not be established
     url: str | None = None
+    # How current the report is (see tools/dates.py). Only "current" may escalate triage on
+    # its own; "older" (>60 days) and "unknown" inform the differential but cannot escalate.
+    recency: Literal["current", "older", "unknown"] = "current"
     # "live": from current search results; "baseline": static endemicity from guidelines.
     basis: Literal["live", "baseline"] = "live"
     in_season: bool | None = None  # baseline only: within the disease's usual peak months

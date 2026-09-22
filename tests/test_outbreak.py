@@ -160,10 +160,12 @@ RESULTS = [SearchResult(title="t", url=LASSA_URL, content="c")]
     [
         ({}, True),
         ({"url": None}, False),
-        ({"report_date": None}, False),
-        ({"report_date": "last week"}, False),
-        ({"report_date": "2026-12-01"}, False),  # future
         ({"url": "https://ncdc.gov.ng/not-in-results"}, False),
+        # Bad dates no longer drop a signal: it is kept with recency "unknown"/"older", which
+        # bars it from escalating but lets it inform the differential (FEEDBACK T1).
+        ({"report_date": None}, True),
+        ({"report_date": "last week"}, True),
+        ({"report_date": "2026-12-01"}, True),  # future
         ({"report_date": "Week 37, published 2026-09-18"}, True),
     ],
 )
@@ -191,12 +193,12 @@ def test_filter_signals(overrides: dict, kept: bool) -> None:
         ({"url": None}, "no URL"),
         # Seen live on 2026-09-22 (FEEDBACK F12): the model added "www." to a real NCDC URL.
         ({"url": LASSA_URL.replace("https://", "https://www.")}, "not among the search results"),
-        ({"report_date": None}, "no report date"),
-        ({"report_date": "last week"}, "unparseable"),
-        ({"report_date": "2026-12-01"}, "future"),
+        ({"url": "https://ncdc.gov.ng.evil.example/x"}, "not on a trusted domain"),
     ],
 )
 def test_every_drop_says_why(overrides: dict, expected: str) -> None:
+    evil = SearchResult(title="t", url="https://ncdc.gov.ng.evil.example/x", content="")
+    results = [*RESULTS, evil]
     sig = ExtractedSignal(
         **{
             "disease": "Lassa fever",
@@ -206,7 +208,7 @@ def test_every_drop_says_why(overrides: dict, expected: str) -> None:
             **overrides,
         }
     )
-    _, dropped = filter_signals([sig], RESULTS, TODAY)
+    _, dropped = filter_signals([sig], results, TODAY)
     assert expected in dropped[0][1]
 
 

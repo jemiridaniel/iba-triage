@@ -9,10 +9,12 @@ from backend.app.graph.state import (
     RuleSnapshot,
     TriageRequest,
 )
+from backend.app.rules.danger_signs import _norm_state
 from backend.app.schemas import (
     TRIAGE_LABELS,
     FollowUpQuestion,
     OutbreakContext,
+    OutbreakSignal,
     PatientCase,
 )
 
@@ -128,6 +130,38 @@ Schema:
 """
 
 
+def _signal_line(sig: OutbreakSignal) -> str:
+    """One signal, with how far its date can be trusted spelled out (FEEDBACK T1)."""
+    if sig.recency == "unknown":
+        when = "report date unknown - do NOT treat as current"
+    elif sig.recency == "older":
+        when = f"older report, {sig.report_date} - do NOT treat as current"
+    else:
+        when = f"reported {sig.report_date}"
+    return f"- {sig.disease} in {sig.state}: {sig.status}, {when} [{sig.url}]"
+
+
+def _signal_groups(signals: list[OutbreakSignal], state: str | None) -> str:
+    """Split live signals by whether they are in the patient's own state (FEEDBACK T3).
+
+    NCDC sitreps are national, so a search for one state returns outbreaks in several. Only
+    the patient's own state can raise the triage level; the rest are context.
+    """
+    target = _norm_state(state) if state else None
+    here = [s for s in signals if target and _norm_state(s.state) == target]
+    elsewhere = [s for s in signals if s not in here]
+    blocks = [
+        f"IN THIS PATIENT'S STATE ({state or 'unknown'}):\n"
+        + ("\n".join(_signal_line(s) for s in here) if here else "- none reported")
+    ]
+    if elsewhere:
+        blocks.append(
+            "ELSEWHERE IN NIGERIA (context only - these must NOT raise this patient's triage "
+            "level or be described as local):\n" + "\n".join(_signal_line(s) for s in elsewhere)
+        )
+    return "\n\n".join(blocks)
+
+
 def reason_messages(
     case: PatientCase,
     pre: RuleSnapshot,
@@ -146,10 +180,7 @@ def reason_messages(
     elif not outbreak.signals:
         outbreak_text = "Checked; no current outbreak signals found for this state."
     else:
-        outbreak_text = "\n".join(
-            f"- {s.disease} in {s.state}: {s.status}, reported {s.report_date} [{s.url}]"
-            for s in outbreak.signals
-        )
+        outbreak_text = _signal_groups(outbreak.signals, case.state)
     baseline = outbreak.baseline if outbreak is not None else []
     baseline_text = (
         "\n".join(

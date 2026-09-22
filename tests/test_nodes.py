@@ -121,6 +121,91 @@ def test_reason_prompt_forbids_doses_and_lists_sources() -> None:
     assert "raw_text" not in user["content"]
 
 
+def test_reason_prompt_separates_this_state_from_elsewhere() -> None:
+    """FEEDBACK T3: NCDC sitreps are national, so one search names several states."""
+    from datetime import date
+
+    from backend.app.schemas import OutbreakSignal
+
+    def sig(state: str, **kw) -> OutbreakSignal:
+        fields = {
+            "disease": "Lassa fever",
+            "state": state,
+            "status": "active",
+            "report_date": date(2026, 9, 18),
+            "url": f"https://ncdc.gov.ng/{state}.pdf",
+            **kw,
+        }
+        return OutbreakSignal(**fields)
+
+    ctx = OutbreakContext(
+        status="ok",
+        source="tavily",
+        message="x",
+        signals=[sig("Ondo"), sig("Edo"), sig("Benue", recency="older")],
+    )
+    case = PatientCase(age_years=30, state="Ondo")
+    _, user = reason_messages(case, RuleSnapshot(floor=None), [], ctx)
+    text = user["content"]
+
+    here, elsewhere = text.split("ELSEWHERE IN NIGERIA")
+    assert "IN THIS PATIENT'S STATE (Ondo)" in here
+    assert "Ondo" in here.split("IN THIS PATIENT'S STATE")[1]
+    assert "Edo" not in here.split("IN THIS PATIENT'S STATE")[1]
+    assert "Edo" in elsewhere and "Benue" in elsewhere
+    assert "must NOT raise this patient's triage level" in elsewhere
+    # T1: staleness is spelled out so the model can't read an old report as current.
+    assert "older report, 2026-09-18 - do NOT treat as current" in elsewhere
+
+
+def test_reason_prompt_flags_an_undated_signal() -> None:
+    from backend.app.schemas import OutbreakSignal
+
+    ctx = OutbreakContext(
+        status="ok",
+        source="tavily",
+        message="x",
+        signals=[
+            OutbreakSignal(
+                disease="Meningitis",
+                state="Ondo",
+                status="active",
+                url="https://ncdc.gov.ng/x",
+                recency="unknown",
+            )
+        ],
+    )
+    _, user = reason_messages(
+        PatientCase(age_years=30, state="Ondo"), RuleSnapshot(floor=None), [], ctx
+    )
+    assert "report date unknown - do NOT treat as current" in user["content"]
+
+
+def test_reason_prompt_says_none_when_nothing_is_reported_in_this_state() -> None:
+    from datetime import date
+
+    from backend.app.schemas import OutbreakSignal
+
+    ctx = OutbreakContext(
+        status="ok",
+        source="tavily",
+        message="x",
+        signals=[
+            OutbreakSignal(
+                disease="Lassa fever",
+                state="Ondo",
+                status="active",
+                report_date=date(2026, 9, 18),
+                url="https://ncdc.gov.ng/x",
+            )
+        ],
+    )
+    _, user = reason_messages(
+        PatientCase(age_years=30, state="Lagos"), RuleSnapshot(floor=None), [], ctx
+    )
+    assert "IN THIS PATIENT'S STATE (Lagos):\n- none reported" in user["content"]
+
+
 def test_reason_output_caps_differential_and_normalises_likelihood() -> None:
     items = [{"condition": f"c{i}", "likelihood": "medium"} for i in range(6)]
     out = ReasonOutput(triage_level="refer_24h", triage_rationale="r", differential=items)

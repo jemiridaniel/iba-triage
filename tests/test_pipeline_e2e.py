@@ -139,12 +139,18 @@ def test_adult_in_lassa_outbreak_state_gets_lassa_and_isolation(tmp_path: Path) 
     assert r.actions[0].text == LASSA_IPC_REMINDER
     assert "holding area" in LASSA_IPC_REMINDER and "infection prevention" in LASSA_IPC_REMINDER
 
-    # Outbreak: undated and invented-URL signals dropped; mock data flagged.
+    # Outbreak: invented-URL signal dropped; mock data flagged. The undated one is kept for
+    # context but marked "unknown", which bars it from escalating (FEEDBACK T1).
     assert r.outbreak.status == "ok" and r.outbreak.source == "mock"
     assert {(s.disease, s.state) for s in r.outbreak.signals} == {
         ("Lassa fever", "Ondo"),
         ("Cholera", "Bauchi"),
+        ("Meningitis", "Kebbi"),
     }
+    by_disease = {s.disease: s for s in r.outbreak.signals}
+    assert by_disease["Meningitis"].recency == "unknown"
+    assert by_disease["Meningitis"].report_date is None
+    assert by_disease["Lassa fever"].recency == "current"
     assert any("MOCK" in w for w in r.warnings)
 
     # Grounding: only the quote-verified reason is cited; the rest are kept but unsupported.
@@ -393,7 +399,8 @@ def test_decision_trace_records_each_step(tmp_path: Path) -> None:
     assert steps["reason"].prompt_tokens == 100 and steps["reason"].completion_tokens == 50
     # 100 in * $1/M + 50 out * $2/M = $0.0002 per call, four LLM calls
     assert r.decision_trace.total_cost_usd == pytest.approx(0.0008)
-    assert "2 dropped" in steps["outbreak"].note
+    # Only the invented URL is dropped now; the undated signal is kept as recency "unknown".
+    assert "3 signals kept, 1 dropped" in steps["outbreak"].note
     assert "verified=1/3" in steps["rules_post"].note
 
 

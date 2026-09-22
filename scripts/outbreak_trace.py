@@ -96,7 +96,10 @@ def show_search(counter: CountingSearch, tool: OutbreakTool) -> None:
 def show_signals(tool: OutbreakTool, signals: list) -> None:
     print(f"\nSIGNALS KEPT ({len(signals)}):")
     for s in signals or []:
-        print(f"  + {s.disease} / {s.state}: status={s.status}, report_date={s.report_date}")
+        print(
+            f"  + {s.disease} / {s.state}: status={s.status}, "
+            f"report_date={s.report_date} [{s.recency}]"
+        )
         print(f"      {s.url}")
     if not signals:
         print("  (none)")

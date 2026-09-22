@@ -27,6 +27,7 @@ from pydantic import BaseModel, field_validator
 from backend.app.llm.client import LLMClient, LLMError
 from backend.app.llm.router import EvalConfig, call_json
 from backend.app.schemas import OutbreakContext, OutbreakSignal
+from backend.app.tools.dates import recency, resolve_report_date
 from backend.app.tools.endemicity import AnchorResolver, Endemicity
 
 logger = logging.getLogger("iba.outbreak")
@@ -161,44 +162,51 @@ def _norm_state(state: str) -> str:
 
 
 def drop_reason(sig: ExtractedSignal, allowed: set[str], today: date) -> str | None:
-    """Why this extracted signal can't be trusted, or None if it can be."""
+    """Why this extracted signal can't be trusted at all, or None if it can be kept.
+
+    A signal with no usable date is no longer dropped: it is kept with recency "unknown",
+    which informs the differential but cannot escalate triage (see tools/dates.py).
+    """
     if not sig.url:
         return "no URL"
     if sig.url not in allowed:
         return "URL not among the search results (invented or altered)"
     if not _is_trusted(sig.url):
         return "URL is not on a trusted domain"
-    if _parse_date(sig.report_date, today) is None:
-        if not sig.report_date:
-            return "no report date"
-        if not re.search(r"\d{4}-\d{2}-\d{2}", sig.report_date):
-            return f"unparseable report date {sig.report_date!r}"
-        return f"report date {sig.report_date!r} is in the future"
     return None
 
 
 def filter_signals(
     extracted: list[ExtractedSignal], results: list[SearchResult], today: date
 ) -> tuple[list[OutbreakSignal], list[tuple[ExtractedSignal, str]]]:
-    """Keep only sourced, dated signals whose URL came from the search.
+    """Keep only signals whose URL came from the search, and date them from the source text.
 
-    Returns (kept, dropped) where each dropped signal carries the reason it failed.
+    The model's `report_date` is not trusted (FEEDBACK T1): the date comes from explicit
+    patterns in the result's title, text and URL, and the model's answer is used only when it
+    is older. Returns (kept, dropped) where each dropped signal carries the reason it failed.
     """
-    allowed = {r.url for r in results}
+    by_url = {r.url: r for r in results}
     kept: list[OutbreakSignal] = []
     dropped: list[tuple[ExtractedSignal, str]] = []
     for sig in extracted:
-        reason = drop_reason(sig, allowed, today)
+        reason = drop_reason(sig, set(by_url), today)
         if reason is not None:
             dropped.append((sig, reason))
             continue
+        result = by_url[sig.url]  # type: ignore[index]
+        when, _basis = resolve_report_date(
+            _parse_date(sig.report_date, today),
+            [result.title, result.published_date or "", result.content, result.url],
+            today,
+        )
         kept.append(
             OutbreakSignal(
                 disease=sig.disease,
                 state=sig.state,
                 status=sig.status,
-                report_date=_parse_date(sig.report_date, today),  # type: ignore[arg-type]
+                report_date=when,
                 url=sig.url,
+                recency=recency(when, today),
             )
         )
     return kept, dropped

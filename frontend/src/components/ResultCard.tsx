@@ -8,6 +8,7 @@ import type {
   DoseRecommendation,
   LiveRun,
   OutbreakContext,
+  OutbreakSignal,
   TriageLevel,
 } from "../types";
 
@@ -184,8 +185,37 @@ function when(iso?: string | null): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
+const normState = (s: string) => s.trim().toLowerCase().replace(/\s+state$/, "").replace(/[^a-z0-9]+/g, "-");
+const signalKey = (s: OutbreakSignal) => `${s.disease}-${s.state}-${s.url}`;
+
+/** One live signal. A report we can't date, or one over 60 days old, says so plainly:
+ *  it still informs the differential but never raises the triage level on its own. */
+function Signal({ s, muted = false }: { s: OutbreakSignal; muted?: boolean }) {
+  const stale = s.recency === "older" || s.recency === "unknown";
+  return (
+    <p className={`rounded-md p-2 ${muted || stale ? "bg-slate-50 text-slate-700 ring-1 ring-slate-200" : "bg-sky-50"}`}>
+      <strong>{s.disease}</strong>: {s.status} in {s.state}
+      {s.recency === "unknown" ? (
+        <> · <span className="font-semibold text-amber-800">date unknown</span></>
+      ) : s.recency === "older" ? (
+        <> · <span className="font-semibold text-amber-800">older report</span> {s.report_date}</>
+      ) : (
+        s.report_date && <> · report {s.report_date}</>
+      )}
+      {s.url && (
+        <> · <a className="font-medium text-sky-800 underline" href={s.url} target="_blank" rel="noreferrer">source ↗</a></>
+      )}
+    </p>
+  );
+}
+
 function Outbreak({ ctx, index, onOpen, state }: { ctx: OutbreakContext; index: Map<string, Citation>; onOpen: OpenCitation; state: string }) {
   const live = ctx.status === "ok";
+  // NCDC sitreps are national, so a search for one state returns outbreaks in others. Only
+  // the patient's own state can raise their triage level, so the two are shown apart.
+  const target = state ? normState(state) : "";
+  const here = ctx.signals.filter((s) => target && normState(s.state) === target);
+  const elsewhere = ctx.signals.filter((s) => !here.includes(s));
   return (
     <div className="space-y-2 text-sm">
       <div className="flex flex-wrap items-center gap-2">
@@ -200,15 +230,21 @@ function Outbreak({ ctx, index, onOpen, state }: { ctx: OutbreakContext; index: 
         </span>
       </div>
       {live && !ctx.signals.length && <p className="text-slate-600">No current outbreak reports found for {state}.</p>}
-      {ctx.signals.map((s) => (
-        <p key={`${s.disease}-${s.state}-${s.url}`} className="rounded-md bg-sky-50 p-2">
-          <strong>{s.disease}</strong>: {s.status} in {s.state}
-          {s.report_date && <> · report {s.report_date}</>}
-          {s.url && (
-            <> · <a className="font-medium text-sky-800 underline" href={s.url} target="_blank" rel="noreferrer">source ↗</a></>
-          )}
-        </p>
-      ))}
+      {here.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs font-bold uppercase tracking-wide text-sky-900">In {state}</p>
+          {here.map((s) => <Signal key={signalKey(s)} s={s} />)}
+        </div>
+      )}
+      {elsewhere.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+            Elsewhere in Nigeria · context only
+          </p>
+          <p className="text-xs text-slate-500">These do not change this patient's triage level.</p>
+          {elsewhere.map((s) => <Signal key={signalKey(s)} s={s} muted />)}
+        </div>
+      )}
       {ctx.baseline.length > 0 ? (
         <div className="rounded-md bg-slate-50 p-2 ring-1 ring-slate-200">
           <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-bold text-slate-700">BASELINE · provisional</span>

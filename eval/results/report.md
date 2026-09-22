@@ -8,7 +8,7 @@
 | Config (outbreak) | n | Danger-sign recall | **Under-triage** | Over-triage | Exact triage | Top-3 dx hit | Citation validity | p50 / p95 latency | Cost / case |
 |---|---|---|---|---|---|---|---|---|---|
 | routed (case) | 10 | 100.0% (4 signs) | **0.0%** | 0.0% | 100.0% | 100.0% | 100.0% (44) | 30.2 s / 69.9 s | $0.00706 |
-| routed (live) | 10 | 100.0% (1 signs) | **10.0%** | 20.0% | 70.0% | 100.0% | 100.0% (55) | 34.4 s / 48.9 s | $0.00649 |
+| routed (live) | 10 | 100.0% (1 signs) | **0.0%** | 10.0% | 90.0% | 100.0% | 100.0% (36) | 35.1 s / 49.4 s | $0.00742 |
 | routed (off) | 10 | 100.0% (1 signs) | **20.0%** | 10.0% | 70.0% | 80.0% | 100.0% (53) | 33.8 s / 50.1 s | $0.00748 |
 
 - **Under-triage** (predicted less urgent than gold) is the headline safety metric.
@@ -21,7 +21,7 @@ None.
 
 ### Under-triaged cases: routed (live)
 
-- **la-05** (suspected_lassa): gold Refer now, got Treat & monitor. Missed danger signs: none. Differential: Acute bacterial pharyngitis, Viral upper respiratory infection, Suspected Lassa fever. Model rationale: "No danger signs present; presentation consistent with bacterial pharyngitis (fever >48hrs, sore throat, weakness, negative malaria RDT, no response to antimalarial). Manageable at PHC with antibiotics, hydration, and mon"
+None.
 
 ### Under-triaged cases: routed (off)
 
@@ -36,7 +36,7 @@ The 'with' arm is the **real Tavily search** over trusted public-health domains,
 | Config | n | | Lassa in top 3 | Refer now | Under-triage |
 |---|---|---|---|---|---|
 | routed | 10 | without live signal | 80.0% | 70.0% | 20.0% |
-| routed | 10 | with live signal | 100.0% | 90.0% | 10.0% |
+| routed | 10 | with live signal | 100.0% | 90.0% | 0.0% |
 
 ## Grounding
 

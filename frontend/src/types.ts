@@ -25,6 +25,8 @@ export interface OutbreakSignal {
   status: string;
   report_date?: string | null;
   url?: string | null;
+  // How far the report's date can be trusted. Only "current" may escalate triage.
+  recency?: "current" | "older" | "unknown";
   basis: "live" | "baseline";
   in_season?: boolean | null;
   citation?: string | null;
