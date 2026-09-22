@@ -50,8 +50,15 @@
         padding: 24px;
         opacity: 1;
         transition: opacity 300ms ease-out;
+        /* Feel native to the tap: no text selection or magnifier, no grey flash, and no
+           pull-to-refresh if the worker swipes down while waiting. */
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        overscroll-behavior: contain;
       }
-      #launch.iba-hide { opacity: 0; }
+      /* Fading out: let taps reach the app underneath instead of hitting a dying overlay. */
+      #launch.iba-hide { opacity: 0; pointer-events: none; }
       #launch .iba-logo { width: 88px; height: 88px; overflow: visible; }
       #launch .iba-word { font-size: 40px; font-weight: 800; letter-spacing: -0.02em; }
       #launch .iba-tag { font-size: 15px; line-height: 1.4; max-width: 18rem; opacity: 0.85; }

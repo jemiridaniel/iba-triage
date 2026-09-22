@@ -134,6 +134,16 @@ def test_launch_animation_is_transform_only_and_accessible() -> None:
     assert "iba-dots" not in INDEX  # the pulsing dots are gone
 
 
+def test_launch_screen_feels_native_to_the_touch() -> None:
+    style = re.search(r"<style>(.*?)</style>", INDEX, re.DOTALL).group(1)
+    launch = style.split("#launch {")[1].split("}")[0]
+    assert "user-select: none" in launch and "-webkit-user-select: none" in launch
+    assert "-webkit-tap-highlight-color: transparent" in launch  # no grey flash on tap
+    assert "overscroll-behavior: contain" in launch  # no pull-to-refresh while waiting
+    # Taps during the fade-out must reach the app, not the dying overlay.
+    assert re.search(r"#launch\.iba-hide \{[^}]*pointer-events: none", style)
+
+
 def test_reduced_motion_shows_the_finished_logo() -> None:
     style = re.search(r"<style>(.*?)</style>", INDEX, re.DOTALL).group(1)
     reduced = style.split("prefers-reduced-motion: reduce")[1]
