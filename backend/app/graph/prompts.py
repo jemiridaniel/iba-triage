@@ -9,7 +9,6 @@ from backend.app.graph.state import (
     RuleSnapshot,
     TriageRequest,
 )
-from backend.app.rag.store import SearchHit
 from backend.app.schemas import (
     TRIAGE_LABELS,
     FollowUpQuestion,
@@ -132,13 +131,14 @@ Schema:
 def reason_messages(
     case: PatientCase,
     pre: RuleSnapshot,
-    hits: list[SearchHit],
+    hits: list,
     outbreak: OutbreakContext | None,
 ) -> list[dict[str, str]]:
+    """`hits` are Passages (chunk + relevant window) or SearchHits (whole chunk, capped)."""
     excerpts = [
         f"[{h.chunk.id}] {h.chunk.title}"
         + (f" | {h.chunk.section}" if h.chunk.section else "")
-        + f" (p.{h.chunk.page})\n{h.chunk.text[:MAX_CHUNK_CHARS]}"
+        + f" (p.{h.chunk.page})\n{getattr(h, 'text', None) or h.chunk.text[:MAX_CHUNK_CHARS]}"
         for h in hits
     ]
     if outbreak is None or outbreak.status != "ok":

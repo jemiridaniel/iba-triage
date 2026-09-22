@@ -245,6 +245,8 @@ class TraceStep(BaseModel):
 
 class DecisionTrace(BaseModel):
     steps: list[TraceStep] = []
+    # Real end-to-end time. Some steps run in parallel, so the sum of step times overstates it.
+    wall_ms: float | None = None
 
     @computed_field
     @property

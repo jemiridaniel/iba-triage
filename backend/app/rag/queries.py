@@ -176,10 +176,20 @@ def plan_queries(case: PatientCase, conditions: list[str]) -> list[QueryPlan]:
 def retrieve(
     store: VectorStore, embed: Embedder, plans: list[QueryPlan], k_total: int, k_per_query: int = 2
 ) -> tuple[list[SearchHit], list[RetrievalLog]]:
-    """Embed all queries in one call; take the best k_per_query per query, then fill to k_total."""
+    """Embed all queries in one call, then search (see search_plans)."""
     if not plans:
         return [], []
-    vectors = embed([p.text for p in plans])
+    return search_plans(store, plans, embed([p.text for p in plans]), k_total, k_per_query)
+
+
+def search_plans(
+    store: VectorStore,
+    plans: list[QueryPlan],
+    vectors: list[list[float]],
+    k_total: int,
+    k_per_query: int = 2,
+) -> tuple[list[SearchHit], list[RetrievalLog]]:
+    """Take the best k_per_query per query (round-robin), then fill to k_total by score."""
     per_query = [
         store.search(v, k=max(k_total, 4), boost=p.boost)
         for p, v in zip(plans, vectors, strict=True)
@@ -199,3 +209,65 @@ def retrieve(
             break
         chosen.setdefault(h.chunk.id, h)
     return list(chosen.values()), logs
+
+
+# --- prompt passages ------------------------------------------------------------
+
+PROMPT_TOP = 4  # passages always shown
+WINDOW_CHARS = 1800
+
+
+@dataclass
+class Passage:
+    chunk: object  # GuidelineChunk
+    text: str  # the most relevant window of the chunk (quotes are verified on the full chunk)
+
+
+def preferred_docs(conditions: list[str]) -> set[str]:
+    return {d for c in conditions if c in CONDITIONS for d in CONDITIONS[c].docs}
+
+
+def select_passages(hits: list[SearchHit], conditions: list[str]) -> list[SearchHit]:
+    """Top PROMPT_TOP by score, plus any retrieved chunk from a condition's own guideline."""
+    ranked = sorted(hits, key=lambda h: -h.score)
+    chosen = ranked[:PROMPT_TOP]
+    owned = preferred_docs(conditions)
+    chosen += [h for h in ranked[PROMPT_TOP:] if h.chunk.doc_id in owned]
+    return chosen
+
+
+def query_terms(texts: list[str]) -> set[str]:
+    words = re.findall(r"[a-z0-9]+", ascii_punct(" ".join(texts)).lower())
+    return {w for w in words if len(w) > 3}
+
+
+def best_window(text: str, terms: set[str], size: int = WINDOW_CHARS, step: int = 150) -> str:
+    """The size-char window with the most query-term hits, snapped to word boundaries."""
+    if len(text) <= size:
+        return text
+    lower = text.lower()
+    best_start, best_score = 0, -1
+    for start in range(0, len(text) - size + step, step):
+        window = lower[start : start + size]
+        score = sum(window.count(t) for t in terms)
+        if score > best_score:
+            best_start, best_score = start, score
+    start = max(0, min(best_start, len(text) - size))
+    end = start + size
+    if start > 0:
+        start = text.find(" ", start) + 1 or start
+    if end < len(text):
+        end = text.rfind(" ", start, end) or end
+    prefix = "… " if start > 0 else ""
+    suffix = " …" if end < len(text) else ""
+    return f"{prefix}{text[start:end].strip()}{suffix}"
+
+
+def prompt_passages(
+    hits: list[SearchHit], conditions: list[str], plans: list[QueryPlan], extra_terms: list[str]
+) -> list[Passage]:
+    terms = query_terms([p.text for p in plans] + extra_terms)
+    return [
+        Passage(h.chunk, best_window(h.chunk.text, terms))
+        for h in select_passages(hits, conditions)
+    ]

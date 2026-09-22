@@ -146,6 +146,10 @@ class TriageState(BaseModel):
     questions: list[FollowUpQuestion] = []
     pre: RuleSnapshot | None = None
     hits: list[SearchHit] = []
+    conditions: list[str] = []  # suspected conditions used for retrieval
+    # Queries planned and embedded in parallel with the outbreak step (static baseline only).
+    query_texts: list[str] = []
+    query_vectors: list[list[float]] = []
     retrieval: list[RetrievalQuery] = []
     retrieval_note: str | None = None  # set when retrieval is unavailable
     outbreak: OutbreakContext | None = None

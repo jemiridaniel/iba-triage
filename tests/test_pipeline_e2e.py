@@ -380,15 +380,11 @@ def test_decision_trace_records_each_step(tmp_path: Path) -> None:
     )
     r = run_triage(TriageRequest(text=ADULT_TEXT, state="Ondo"), deps)
     steps = {s.step: s for s in r.decision_trace.steps}
-    assert list(steps) == [
-        "intake",
-        "rules_pre",
-        "outbreak",
-        "retrieve",
-        "reason",
-        "rules_post",
-        "compose",
-    ]
+    order = list(steps)
+    assert order[:2] == ["intake", "rules_pre"]
+    assert set(order[2:4]) == {"outbreak", "embed_queries"}  # run in parallel
+    assert order[4:] == ["retrieve", "reason", "rules_post", "compose"]
+    assert "embedded while checking outbreaks" in steps["embed_queries"].note
     assert (steps["intake"].model, steps["intake"].reasoning) == ("fast", False)
     assert (steps["outbreak"].model, steps["outbreak"].reasoning) == ("fast", False)
     assert (steps["reason"].model, steps["reason"].reasoning) == ("reason", True)

@@ -49,6 +49,7 @@ STEPS: dict[str, tuple[NodeFn, str, str | None]] = {
     "rules_pre": (nodes.rules_pre, "rules", None),
     "retrieve": (nodes.retrieve, "retrieval", None),
     "outbreak": (nodes.outbreak, "tool", "outbreak"),
+    "embed_queries": (nodes.embed_queries, "retrieval", None),
     "reason": (nodes.reason, "llm", "reason"),
     "rules_post": (nodes.rules_post, "rules", None),
     "compose": (nodes.compose, "llm", "compose"),
@@ -106,6 +107,15 @@ def _error_note(update: dict[str, Any]) -> str | None:
     return None
 
 
+def _route_after_rules_pre(state: TriageState) -> str | list[str]:
+    decision = nodes.after_rules_pre(state)
+    if decision == "needs_info":
+        return END
+    if decision == "outbreak":  # fan out: outbreak search and query embedding in parallel
+        return ["outbreak", "embed_queries"]
+    return decision
+
+
 def build_graph(deps: Deps):
     graph = StateGraph(TriageState)
     for step, (fn, kind, router_step) in STEPS.items():
@@ -113,12 +123,10 @@ def build_graph(deps: Deps):
     graph.set_entry_point("intake")
     graph.add_edge("intake", "rules_pre")
     graph.add_conditional_edges(
-        "rules_pre",
-        nodes.after_rules_pre,
-        {"needs_info": END, "outbreak": "outbreak", "rules_post": "rules_post"},
+        "rules_pre", _route_after_rules_pre, ["outbreak", "embed_queries", "rules_post", END]
     )
-    # Outbreak before retrieval: live/baseline context shapes the retrieval queries.
-    graph.add_edge("outbreak", "retrieve")
+    # Outbreak search and query embedding run in parallel; retrieve joins them.
+    graph.add_edge(["outbreak", "embed_queries"], "retrieve")
     graph.add_edge("retrieve", "reason")
     graph.add_edge("reason", "rules_post")
     graph.add_edge("rules_post", "compose")
@@ -129,8 +137,11 @@ def build_graph(deps: Deps):
 def run_triage(
     request: TriageRequest, deps: Deps, eval_config: EvalConfig = "routed"
 ) -> TriageResult:
+    start = time.perf_counter()
     final = build_graph(deps).invoke(TriageState(request=request, eval_config=eval_config))
-    return to_result(TriageState.model_validate(final) if isinstance(final, dict) else final)
+    result = to_result(TriageState.model_validate(final) if isinstance(final, dict) else final)
+    result.decision_trace.wall_ms = round((time.perf_counter() - start) * 1000, 1)
+    return result
 
 
 def failsafe_result(request: TriageRequest, exc: Exception) -> TriageResult:
@@ -171,6 +182,8 @@ def _event_payload(node: str, update: dict[str, Any]) -> dict[str, Any]:
             "floor_label": TRIAGE_LABELS[pre.floor] if pre.floor else None,
             "danger_signs": [dump(h) for h in pre.danger_signs],
         }
+    elif node == "embed_queries":
+        payload |= {"queries": len(update.get("query_texts", []))}
     elif node == "retrieve":
         payload |= {
             "passages": len(update.get("hits", [])),
@@ -203,6 +216,7 @@ def stream_triage(
     any other unexpected exception yields "error" then a fail-safe "final" (Refer now).
     """
     values: dict[str, Any] | None = None
+    start = time.perf_counter()
     try:
         stream = build_graph(deps).stream(
             TriageState(request=request, eval_config=eval_config),
@@ -214,8 +228,9 @@ def stream_triage(
                 continue
             for node, update in chunk.items():
                 yield node, _event_payload(node, update)
-        state = TriageState.model_validate(values)
-        yield "final", to_result(state).model_dump(mode="json")
+        result = to_result(TriageState.model_validate(values))
+        result.decision_trace.wall_ms = round((time.perf_counter() - start) * 1000, 1)
+        yield "final", result.model_dump(mode="json")
     except SpendLimitError:
         logger.error("spend limit reached during stream")
         yield (

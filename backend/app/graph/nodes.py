@@ -27,7 +27,12 @@ from backend.app.graph.state import (
 )
 from backend.app.llm.client import LLMError
 from backend.app.llm.router import call_json
-from backend.app.rag.queries import plan_queries, retrieve as retrieve_plans, suspected_conditions
+from backend.app.rag.queries import (
+    plan_queries,
+    prompt_passages,
+    search_plans,
+    suspected_conditions,
+)
 from backend.app.rules.danger_signs import (
     LASSA_CASE_DEF_ANCHOR,
     LASSA_IPC_REMINDER,
@@ -38,7 +43,7 @@ from backend.app.rules.danger_signs import (
 )
 from backend.app.rules.dosing import doses_for, strip_doses
 from backend.app.rules.followup import merge_advice, treat_monitor_advice
-from backend.app.rules.grounding import verify_quote
+from backend.app.rules.grounding import patient_fact_supported, verify_quote
 from backend.app.schemas import (
     TRIAGE_LABELS,
     ActionItem,
@@ -47,6 +52,7 @@ from backend.app.schemas import (
     DifferentialItem,
     Evidence,
     GroundingSummary,
+    OutbreakContext,
     PatientCase,
     Reason,
     RetrievalQuery,
@@ -148,29 +154,67 @@ def build_query(case: PatientCase, pre: RuleSnapshot | None) -> str:
     return ", ".join(parts)
 
 
+def _conditions(state: TriageState, outbreak_ctx: OutbreakContext | None) -> list[str]:
+    case = case_with_text(state)
+    signals = outbreak_ctx.all_signals if outbreak_ctx else []
+    lassa_rule = assess(case, signals).lassa is not None
+    danger = bool(state.pre and state.pre.danger_signs)
+    return suspected_conditions(case, danger, outbreak_ctx, lassa_rule)
+
+
+def embed_queries(state: TriageState, deps: Deps) -> dict[str, Any]:
+    """Plan and embed retrieval queries in parallel with the outbreak step.
+
+    Uses the static endemicity baseline (known without any search); the retrieve step embeds
+    only queries that live outbreak data adds afterwards.
+    """
+    if deps.store is None or deps.embed is None or len(deps.store) == 0:
+        return {}
+    region = state.request.state or (state.case.state if state.case else None)
+    baseline = deps.outbreak.endemicity.for_state(
+        region, deps.outbreak.today(), deps.outbreak.resolve
+    )
+    ctx = OutbreakContext(status="unavailable", source="none", message="", baseline=baseline)
+    plans = plan_queries(case_with_text(state), _conditions(state, ctx))
+    try:
+        vectors = deps.embed([p.text for p in plans])
+    except LLMError as exc:  # retrieve will try again
+        return {"_note": f"pre-embedding failed ({type(exc).__name__}); retrieve will embed"}
+    return {
+        "query_texts": [p.text for p in plans],
+        "query_vectors": vectors,
+        "_note": f"{len(plans)} queries embedded while checking outbreaks",
+    }
+
+
 def retrieve(state: TriageState, deps: Deps) -> dict[str, Any]:
     """One query per suspected condition and purpose, with a doc prior (rag/queries.py).
 
-    Runs after the outbreak step so live/baseline Lassa context shapes the queries.
+    Joins the outbreak and embed_queries steps: reuses pre-computed query vectors and embeds
+    only the queries that live outbreak context added.
     """
     if deps.store is None or deps.embed is None or len(deps.store) == 0:
         return {"retrieval_note": "Guideline index not available; no guideline excerpts used."}
-    case = case_with_text(state)
-    signals = state.outbreak.all_signals if state.outbreak else []
-    lassa_rule = assess(case, signals).lassa is not None
-    danger = bool(state.pre and state.pre.danger_signs)
-    conditions = suspected_conditions(case, danger, state.outbreak, lassa_rule)
-    plans = plan_queries(case, conditions)
+    conditions = _conditions(state, state.outbreak)
+    plans = plan_queries(case_with_text(state), conditions)
+    known = dict(zip(state.query_texts, state.query_vectors, strict=False))
+    missing = [p.text for p in plans if p.text not in known]
     try:
-        hits, logs = retrieve_plans(
-            deps.store, deps.embed, plans, k_total=deps.settings.retrieve_top_k
-        )
+        if missing:
+            known.update(zip(missing, deps.embed(missing), strict=True))
     except LLMError as exc:
         return {"retrieval_note": f"Guideline retrieval failed ({type(exc).__name__})."}
+    hits, logs = search_plans(
+        deps.store, plans, [known[p.text] for p in plans], k_total=deps.settings.retrieve_top_k
+    )
     return {
         "hits": hits,
+        "conditions": conditions,
         "retrieval": [RetrievalQuery(**vars(lg)) for lg in logs],
-        "_note": f"conditions={conditions}, queries={len(plans)}, passages={len(hits)}",
+        "_note": (
+            f"conditions={conditions}, queries={len(plans)} ({len(missing)} embedded here), "
+            f"passages={len(hits)}"
+        ),
     }
 
 
@@ -188,7 +232,10 @@ def outbreak(state: TriageState, deps: Deps) -> dict[str, Any]:
 
 def reason(state: TriageState, deps: Deps) -> dict[str, Any]:
     assert state.pre is not None
-    messages = reason_messages(case_with_text(state), state.pre, state.hits, state.outbreak)
+    case = case_with_text(state)
+    plans = plan_queries(case, state.conditions)
+    passages = prompt_passages(state.hits, state.conditions, plans, case.symptoms)
+    messages = reason_messages(case, state.pre, passages, state.outbreak)
     try:
         out, _ = call_json(deps.client, "reason", messages, ReasonOutput, state.eval_config)
     except LLMError as exc:
@@ -240,7 +287,8 @@ def rules_post(state: TriageState, deps: Deps) -> dict[str, Any]:
                 check_next=d.check_next,
                 reasons=[
                     Reason(
-                        text=r.text, evidence=_ground(r.basis, r.chunk_id, r.evidence_quote, deps)
+                        text=r.text,
+                        evidence=_ground(r.basis, r.chunk_id, r.evidence_quote, deps, r.text, case),
                     )
                     for r in d.reasons
                 ],
@@ -412,10 +460,23 @@ def rules_post(state: TriageState, deps: Deps) -> dict[str, Any]:
     return {"post": post, "_note": note}
 
 
-def _ground(basis: str, chunk_id: str | None, quote: str | None, deps: Deps) -> Evidence:
-    """Verify a model claim's evidence quote against the chunk it cites."""
+def _ground(
+    basis: str,
+    chunk_id: str | None,
+    quote: str | None,
+    deps: Deps,
+    text: str = "",
+    case: PatientCase | None = None,
+) -> Evidence:
+    """Verify a model claim's evidence.
+
+    A "patient" label is accepted only if the claim's key terms are in the worker's input or
+    the structured case; otherwise it is relabelled a clinical claim needing a verified quote.
+    """
     if basis == "patient":
-        return Evidence(status="patient")
+        if case is not None and patient_fact_supported(text, case):
+            return Evidence(status="patient")
+        basis = "guideline"  # relabelled: must now be quote-verified
     chunk = deps.store.get(_normalise_ref(chunk_id)) if (chunk_id and deps.store) else None
     if chunk is None:
         return Evidence(status="unsupported")

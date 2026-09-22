@@ -43,16 +43,10 @@ def test_stream_emits_event_per_node_then_final(client_for) -> None:
     resp = client.post("/triage/stream", json={"text": ADULT_TEXT, "state": "Ondo"})
     assert resp.headers["content-type"].startswith("text/event-stream")
     events = parse_sse(resp.text)
-    assert [e for e, _ in events] == [
-        "intake",
-        "rules_pre",
-        "outbreak",
-        "retrieve",
-        "reason",
-        "rules_post",
-        "compose",
-        "final",
-    ]
+    names = [e for e, _ in events]
+    assert names[:2] == ["intake", "rules_pre"]
+    assert set(names[2:4]) == {"outbreak", "embed_queries"}  # parallel
+    assert names[4:] == ["retrieve", "reason", "rules_post", "compose", "final"]
     data = dict(events)
     assert data["rules_pre"]["floor"] is None
     assert data["outbreak"]["outbreak"]["signals"][0]["disease"] == "Lassa fever"

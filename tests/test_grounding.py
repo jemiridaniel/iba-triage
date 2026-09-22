@@ -61,3 +61,75 @@ def test_quote_from_another_chunk_fails() -> None:
 
 def test_normalise() -> None:
     assert normalise("  “A–b ,  C” ") == "a-b, c"
+
+
+# --- patient-fact loophole ------------------------------------------------------
+
+from backend.app.graph import nodes  # noqa: E402
+from backend.app.rules.grounding import patient_fact_supported  # noqa: E402
+from backend.app.schemas import PatientCase  # noqa: E402
+
+CASE = PatientCase(
+    age_years=35,
+    sex="male",
+    fever_days=5,
+    rdt_result="negative",
+    state="Ondo",
+    symptoms=["fever", "headache", "sore throat"],
+    antimalarial_taken=True,
+    antimalarial_no_response=True,
+    raw_text="Adult man 35 years, fever 5 days, RDT negative, took coartem for 3 days but no "
+    "improvement, headache and sore throat",
+)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Fever for 5 days",
+        "Fever for five days",  # number words
+        "RDT negative",
+        "Negative malaria RDT",  # from structured case
+        "Headache and sore throat",
+        "Took coartem without improvement",
+        "35-year-old adult man",
+        "Lives in Ondo State",
+    ],
+)
+def test_real_patient_facts_are_accepted(text: str) -> None:
+    assert patient_fact_supported(text, CASE)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # Adversarial: clinical inferences smuggled in under the "patient" label.
+        "Presentation is consistent with Lassa fever given residence in an endemic area",
+        "Likely viral haemorrhagic fever",
+        "Requires isolation and ribavirin",
+        "No danger signs, so outpatient management is appropriate",
+        "Bleeding from the gums",  # not in this patient's input at all
+        "",
+    ],
+)
+def test_clinical_claims_labelled_patient_are_rejected(text: str) -> None:
+    assert not patient_fact_supported(text, CASE)
+
+
+def test_relabelled_claim_without_quote_is_unsupported(tmp_path) -> None:
+    from tests.pipeline_fakes import make_deps
+
+    deps, _ = make_deps(tmp_path, {})
+    ev = nodes._ground("patient", None, None, deps, "Consistent with Lassa fever", CASE)
+    assert ev.status == "unsupported"
+    ev = nodes._ground("patient", None, None, deps, "Fever for 5 days", CASE)
+    assert ev.status == "patient"
+
+
+def test_relabelled_claim_with_valid_quote_is_verified(tmp_path) -> None:
+    from tests.pipeline_fakes import make_deps
+
+    deps, _ = make_deps(tmp_path, {})
+    quote = "Look for other causes of fever such as typhoid, pneumonia, urinary infection"
+    ev = nodes._ground("patient", "fake-malaria:0002", quote, deps, "Consider typhoid", CASE)
+    assert ev.status == "verified"

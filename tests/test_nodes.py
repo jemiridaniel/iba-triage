@@ -190,3 +190,37 @@ def test_referral_note_has_header_and_referral_blanks(tmp_path: Path) -> None:
     note = nodes.compose(s, deps)["compose"].referral_note
     assert note.startswith("IBA TRIAGE NOTE · ") and "REFER NOW · Ondo" in note.splitlines()[0]
     assert "Referred to: ____" in note
+
+
+def test_retrieve_reuses_pre_embedded_queries(tmp_path: Path) -> None:
+    calls = []
+    deps, _ = make_deps(tmp_path, {})
+    inner = deps.embed
+    deps.embed = lambda texts: calls.append(list(texts)) or inner(texts)
+    s = state_for("fever")
+    s.case = PatientCase(age_years=35, fever_days=5, rdt_result="negative")
+    s.pre = RuleSnapshot(floor=None)
+    s = s.model_copy(update=nodes.embed_queries(s, deps))
+    assert len(calls) == 1 and s.query_texts
+    out = nodes.retrieve(s, deps)
+    assert len(calls) == 1  # nothing new to embed: outbreak added no condition
+    assert out["hits"] and "(0 embedded here)" in out["_note"]
+
+
+def test_prompt_passages_cap_and_window() -> None:
+    from backend.app.rag.queries import PROMPT_TOP, WINDOW_CHARS, best_window, select_passages
+    from tests.pipeline_fakes import fake_store
+
+    store = fake_store()
+    hits = store.search([1.0] * 256, k=8)  # every chunk scores > 0
+    chosen = select_passages(hits, ["lassa"])
+    top = sorted(hits, key=lambda h: -h.score)[:PROMPT_TOP]
+    assert chosen[:PROMPT_TOP] == top
+    assert all(h.chunk.doc_id == "fake-lassa" for h in chosen[PROMPT_TOP:])
+
+    text = (
+        ("filler words here " * 150) + "isolate the patient with gloves " + ("more filler " * 150)
+    )
+    window = best_window(text, {"isolate", "gloves"})
+    assert "isolate the patient with gloves" in window
+    assert len(window) <= WINDOW_CHARS + 4 and window.startswith("… ")
