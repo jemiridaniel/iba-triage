@@ -7,9 +7,9 @@ a referral note. **Decision support, not diagnosis: a clinician always decides.*
 
 Built for the Nebius x NVIDIA Global AI Hackathon. Full design: [docs/SPEC.md](docs/SPEC.md).
 
-> Status: week 3. Installable PWA with streaming results, served by FastAPI from one Docker
-> image; real guideline index (NCDC + WHO). Pending: live Tavily credits, the NMEP malaria
-> guideline PDF, a verified dose table and a verified endemic-state list.
+> Status: week 5. Installable PWA with streaming results, served by FastAPI from one Docker
+> image; real guideline index (NCDC + WHO); **live Tavily outbreak search**. Pending: the NMEP
+> malaria guideline PDF, a verified dose table and a verified endemic-state list.
 
 ## Pipeline
 
@@ -139,6 +139,14 @@ Guideline PDFs are listed in [data/sources.yaml](data/sources.yaml) with licence
 not committed. `scripts.fetch_sources` downloads them; the NMEP malaria guideline must be added
 by hand. WHO documents are CC BY-NC-SA 3.0 IGO (attribution, non-commercial).
 
+With `TAVILY_API_KEY` set, the outbreak step searches `ncdc.gov.ng`, `who.int`, `reliefweb.int`
+and `afro.who.int`, cached per state per day. To see exactly what a live check does — the
+queries sent, every result, and why each extracted signal was kept or dropped:
+
+```bash
+uv run python -m scripts.outbreak_trace --state Ondo --fresh
+```
+
 Demo without Tavily credits or real guideline PDFs (synthetic data, clearly flagged in output):
 
 ```bash
@@ -154,7 +162,8 @@ uv run python -m backend.app.cli "Adult man 35 years, fever 5 days, RDT negative
 with gold labels and a guideline rationale, **pending clinician review**
 ([docs/CLINICAL_REVIEW.md](docs/CLINICAL_REVIEW.md)). `eval/run_eval.py` runs the routed,
 reason-only and fast-only configs (resumable, cached, confirms before spending over $0.50);
-`--outbreak off|mock` measures outbreak lift without Tavily. `eval/report.py` writes
+`--outbreak off|mock|live` measures outbreak lift (`live` uses the real Tavily search; `mock`
+stands in for it offline). `eval/report.py` writes
 [eval/results/report.md](eval/results/report.md) and charts. Current results are a 10-case
 development check only.
 

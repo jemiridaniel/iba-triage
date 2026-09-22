@@ -70,6 +70,41 @@ def test_mock_search_is_per_state(tmp_path: Path) -> None:
     assert outbreak_search("case", case, template) is None
     assert outbreak_search("mock", case, template) is not None
     assert outbreak_search("off", {**case, "outbreak": "mock_live"}, template) is None
+    # "live" never substitutes a mock: run_case leaves the real Tavily client in place.
+    assert outbreak_search("live", {**case, "outbreak": "mock_live"}, template) is None
+
+
+def test_live_mode_counts_a_signal_only_for_the_patients_own_state() -> None:
+    from datetime import date
+
+    from backend.app.schemas import OutbreakContext, OutbreakSignal, TriageResult
+    from eval.run_eval import had_live_signal
+
+    case = {"state": "Lagos", "outbreak": "baseline_only"}
+
+    def result_with(state: str) -> TriageResult:
+        signal = OutbreakSignal(
+            disease="Lassa Fever",
+            state=state,
+            status="active",
+            report_date=date(2026, 9, 18),
+            url="https://ncdc.gov.ng/x.pdf",
+            basis="live",
+        )
+        return TriageResult(
+            status="complete",
+            outbreak=OutbreakContext(
+                status="ok", source="tavily", message="checked", signals=[signal]
+            ),
+        )
+
+    # A national sitrep names other states; only the patient's own state counts as live.
+    assert not had_live_signal(case, "live", result_with("Ondo"))
+    assert had_live_signal(case, "live", result_with("Lagos"))
+    assert not had_live_signal(case, "live", None)
+    # The mock modes are unchanged and don't look at the result.
+    assert had_live_signal(case, "mock")
+    assert had_live_signal({**case, "outbreak": "mock_live"}, "case")
 
 
 def rec(id, gold, pred, *, cat="x", signs=(), found=(), diff=(), mode="case", kept=2, dropped=0):

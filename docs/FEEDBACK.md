@@ -30,6 +30,9 @@ Raw responses are saved in [tests/fixtures/nemotron_responses.json](../tests/fix
 | F9 | Catalogue | No NVIDIA embedding or reranking model | Medium for NVIDIA-only builds |
 | F10 | Nemotron / API | No way to cap or budget reasoning tokens | **High**: truncation breaks structured output |
 | F11 | Serving | Generation throughput varies 3x between identical calls | Medium: p95 latency unpredictable |
+| F12 | Nemotron / API | Model rewrites a URL it was told to copy exactly (adds `www.`) | **High**: a citation is only as good as its URL |
+| T1 | Tavily | `published_date` empty on every result, so recency depends on the LLM reading dates out of page text | **High**: recency is a safety property here |
+| T3 | Tavily | National sitreps yield signals for other states than the patient's | Low (rules filter by state) |
 
 ---
 
@@ -265,6 +268,102 @@ response or headers so clients can tell a slow queue from a slow prompt.
 
 ---
 
+## F12. Nemotron silently rewrites URLs it is told to copy exactly
+
+**Where.** Outbreak extraction on `nvidia/Nemotron-3_5-Lightning`, reasoning off. The prompt
+says: *"url: copy the URL of the result the signal came from, exactly. Never invent a URL."*
+
+**Reproduction.** `uv run python -m scripts.outbreak_trace --fresh` (live Tavily, Ondo,
+2026-09-22). Two Lassa signals were extracted from two different NCDC sitrep PDFs. One URL was
+copied verbatim. The other came back as
+
+```
+given:    https://ncdc.gov.ng/themes/common/files/sitreps/b0fedda076a0b27d21d5a09678dd69a0.pdf
+returned: https://www.ncdc.gov.ng/themes/common/files/sitreps/b0fedda076a0b27d21d5a09678dd69a0.pdf
+```
+
+a `www.` the source text never contained. The two source URLs were adjacent in the prompt and
+differed only in their hash, so this is not a copy of some other result: the model normalised
+the host.
+
+**Impact.** A rewritten URL is indistinguishable from an invented one. Ours happened to still
+resolve, but a health worker following a citation to a 404 — or to a different document —
+would be worse than no citation. This is exactly the failure that mock data never shows: eight
+weeks of fixture-based tests never produced an altered URL, and the first live call did.
+
+**Workaround.** We never trust an extracted URL. `filter_signals` requires the URL to be
+**byte-identical to one the search actually returned** (`backend/app/tools/outbreak.py`), so
+the rewritten one was dropped with the reason *"URL not among the search results (invented or
+altered)"*. 1 of 2 signals dropped on the first live call.
+
+**Suggestions.** Document that verbatim copying of identifiers is not reliable even with
+reasoning off, and that callers must validate. A `response_format` with a URL-typed enum
+constrained to supplied values would remove the class of bug entirely.
+
+---
+
+## Tavily
+
+Tavily was wired in on 2026-09-22 (`backend/app/tools/outbreak.py`). Two searches per state per
+day, `search_depth="advanced"`, `time_range="month"`, restricted to `ncdc.gov.ng`, `who.int`,
+`reliefweb.int`, `afro.who.int`.
+
+### T1. `published_date` is empty on every result, so dates have to come from the model
+
+**Reproduction.** `uv run python -m scripts.outbreak_trace --fresh`, saved at
+[eval/results/tavily/trace_ondo.txt](../eval/results/tavily/trace_ondo.txt). **10 of 10 results
+returned `published_date: None`**, across `ncdc.gov.ng`, `www.ncdc.gov.ng`, `iris.who.int`,
+`reliefweb.int` and `www.afro.who.int`, with `time_range="month"` set. The ReliefWeb result even
+carries the date in its own title ("Epi Week 34: 17th – 23rd August 2026") and in its slug.
+
+**Impact.** This is the single biggest problem live search created for us. Recency is a safety
+property here: a Lassa sitrep from last season must not read as current. With no date from the
+API we have to ask the LLM to read the date out of the page text, and it is not reliable — for
+the Lagos query, **all 5 extracted signals came back dated `2026-09-22` (today)** when the
+underlying sitrep was epi week 34, a month old. Our filter only rejects unparseable or future
+dates, so "today" always passes. We would rather trust a metadata field than a model.
+
+**Suggestions.** Return `published_date` whenever the crawler has it (ReliefWeb exposes it in
+the page, the URL and its own API). Failing that, a documented "date unknown" marker, so
+callers can tell "no date" from "not extracted". A `min_published_date` filter would let us
+enforce recency server-side rather than after the fact.
+
+### T2. `include_domains_mode="restrict"` was exact
+
+**10 of 10 URLs** across both queries were on the allow-list, including subdomains we wanted
+(`iris.who.int`, `www.afro.who.int`) and none we did not. Our own `_is_trusted` check, which
+re-validates every host with a suffix match, dropped nothing. For a clinical tool where an
+invented or low-quality source is a safety issue, a search API that respects a domain allow-list
+exactly is the feature that made Tavily usable at all.
+
+### T3. Relevance on a narrow topic is mixed, and a national report answers for every state
+
+Of 8 unique trusted results for Ondo, 2 were plainly off-topic (an NCDC "invitation to tender"
+page, a WHO infographics index at `?page=426`). Not harmful — the extractor ignored them — but
+they cost prompt tokens.
+
+More interesting: NCDC publishes **national** sitreps, so a search for Lagos returns a report
+covering Ondo, Edo, Bauchi, Taraba and Benue. The extractor dutifully emits a signal per state.
+Our deterministic rule matches the patient's own state before it escalates
+(`active_outbreak()`), so a Lagos patient is not escalated on an Ondo outbreak — but the
+reasoning prompt still lists the out-of-state signals. Noted as a risk to watch; see
+"Still to evaluate".
+
+### T4. Latency and credits
+
+| | Wall time |
+|---|---|
+| State-specific query, uncached (`search_depth="advanced"`) | 4.4 s |
+| Shared `"NCDC situation report"` query, second state onward | 0.24 s |
+| Both queries, one uncached state | 4.6 s |
+| Outbreak step end to end (2 searches + extraction) | **5.4 s** |
+| Outbreak step, cached (same state, same day) | **1 ms** |
+
+The fixed second query appears to be cached Tavily-side, which is why it drops from seconds to
+240 ms — useful, and worth documenting.
+
+---
+
 ## What worked well
 
 - **OpenAI compatibility:** the stock `openai` SDK worked with only `base_url` changed,
@@ -324,9 +423,26 @@ health worker sees a danger-sign referral within ~1.5 s instead of ~15 s.
 Ultra is faster per token and answered in fewer, longer reasoning steps; it also produced the
 only structured-output failure of the day (see F5: no JSON mode).
 
+**2026-09-22, first live Tavily runs** (Lightning for extraction, Super for reasoning):
+
+| | Result |
+|---|---|
+| Demo cases, 3 runs each, live search | **9 / 9 pass**, 0 fallbacks, p50 27.4 s, max 45.1 s, $0.0575 |
+| Outbreak lift, 10 suspected-Lassa cases, live vs off | Lassa in top 3 **80% → 100%**; Refer now **70% → 90%**; under-triage **20% → 10%** |
+| Live Lassa signal found for the patient's own state | 8 of 10 cases (Ondo, Edo, Bauchi, Taraba, Plateau; not Lagos or Ebonyi) |
+| Tavily searches used | 24 (2 per uncached state per day) |
+
+The live signal fixed one under-triage (la-09, Plateau: treat-and-monitor → refer now) and
+introduced one over-triage (la-10, Ondo: treat-and-monitor → refer now). The mock arm had
+suggested a larger lift because it guaranteed a signal for every state; the real search finds
+one for 8 of 10, which is the honest number.
+
 ## Still to evaluate
 
 - Ultra: response shape, reasoning control, latency, cost.
 - Serverless Endpoints: cold start, image size limits, scale to zero (week 3).
 - Serverless Jobs for the eval batch (week 4).
-- Tavily (Builder credits pending).
+- **T1 follow-up:** whether to reject extracted `report_date` values equal to today when the
+  source text contains an older explicit date, or to fetch dates from the page ourselves.
+- **T3 follow-up:** whether the reasoning prompt should list only the patient's own state's
+  signals, or keep the national picture with the state made explicit.

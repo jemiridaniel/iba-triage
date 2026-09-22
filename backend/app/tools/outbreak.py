@@ -160,26 +160,48 @@ def _norm_state(state: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", re.sub(r"\s+state$", "", state.strip().lower())).strip("-")
 
 
+def drop_reason(sig: ExtractedSignal, allowed: set[str], today: date) -> str | None:
+    """Why this extracted signal can't be trusted, or None if it can be."""
+    if not sig.url:
+        return "no URL"
+    if sig.url not in allowed:
+        return "URL not among the search results (invented or altered)"
+    if not _is_trusted(sig.url):
+        return "URL is not on a trusted domain"
+    if _parse_date(sig.report_date, today) is None:
+        if not sig.report_date:
+            return "no report date"
+        if not re.search(r"\d{4}-\d{2}-\d{2}", sig.report_date):
+            return f"unparseable report date {sig.report_date!r}"
+        return f"report date {sig.report_date!r} is in the future"
+    return None
+
+
 def filter_signals(
     extracted: list[ExtractedSignal], results: list[SearchResult], today: date
-) -> tuple[list[OutbreakSignal], int]:
-    """Keep only sourced, dated signals whose URL came from the search. Returns (kept, dropped)."""
+) -> tuple[list[OutbreakSignal], list[tuple[ExtractedSignal, str]]]:
+    """Keep only sourced, dated signals whose URL came from the search.
+
+    Returns (kept, dropped) where each dropped signal carries the reason it failed.
+    """
     allowed = {r.url for r in results}
     kept: list[OutbreakSignal] = []
+    dropped: list[tuple[ExtractedSignal, str]] = []
     for sig in extracted:
-        when = _parse_date(sig.report_date, today)
-        if not sig.url or sig.url not in allowed or not _is_trusted(sig.url) or when is None:
+        reason = drop_reason(sig, allowed, today)
+        if reason is not None:
+            dropped.append((sig, reason))
             continue
         kept.append(
             OutbreakSignal(
                 disease=sig.disease,
                 state=sig.state,
                 status=sig.status,
-                report_date=when,
+                report_date=_parse_date(sig.report_date, today),  # type: ignore[arg-type]
                 url=sig.url,
             )
         )
-    return kept, len(extracted) - len(kept)
+    return kept, dropped
 
 
 class OutbreakTool:
@@ -202,6 +224,10 @@ class OutbreakTool:
         self.eval_config = eval_config
         self.today = today
         self.last_note: str | None = None  # for the decision trace
+        # Last live check, for the trace and scripts/outbreak_trace.py (not persisted).
+        self.last_queries: list[str] = []
+        self.last_results: list[SearchResult] = []
+        self.last_drops: list[tuple[ExtractedSignal, str]] = []
 
     def check(self, state: str | None) -> OutbreakContext:
         """Live signals (if search works) plus the static baseline, always."""
@@ -227,8 +253,10 @@ class OutbreakTool:
             f"{state} Nigeria outbreak {DISEASE_CANDIDATES} {today:%B %Y}",
             "NCDC situation report",
         ]
+        self.last_queries, self.last_results, self.last_drops = queries, [], []
         try:
             results = self._search(queries)
+            self.last_results = results
         except Exception as exc:  # network, auth, quota: degrade, never crash triage
             logger.warning("outbreak search failed: %s", type(exc).__name__)
             return self._unavailable(
@@ -237,7 +265,6 @@ class OutbreakTool:
             )
 
         signals: list[OutbreakSignal] = []
-        dropped = 0
         if results:
             try:
                 extraction, _ = call_json(
@@ -253,7 +280,7 @@ class OutbreakTool:
                     "Live outbreak data unavailable right now.",
                     detail=f"extraction failed: {type(exc).__name__}",
                 )
-            signals, dropped = filter_signals(extraction.signals, results, today)
+            signals, self.last_drops = filter_signals(extraction.signals, results, today)
 
         label = "MOCK test data" if self.search.source == "mock" else "trusted sources"
         context = OutbreakContext(
@@ -267,7 +294,7 @@ class OutbreakTool:
         cache_file.write_text(context.model_dump_json(), encoding="utf-8")
         self.last_note = (
             f"{self.search.source}: {len(queries)} searches, {len(results)} results, "
-            f"{len(signals)} signals kept, {dropped} dropped"
+            f"{len(signals)} signals kept, {len(self.last_drops)} dropped"
         )
         return context
 

@@ -1,0 +1,93 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/danieljemiri/Desktop/Personal Project/iba-triage/scripts/outbreak_trace.py", line 222, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/Users/danieljemiri/Desktop/Personal Project/iba-triage/scripts/outbreak_trace.py", line 212, in main
+    outbreak_cites = [c.url for d in result.differential for c in d.citations if c.url]
+                                                                                 ^^^^^
+AttributeError: 'str' object has no attribute 'url'
+==============================================================================
+LIVE OUTBREAK TRACE  state=Ondo  today=2026-09-22
+case: Adult man 35 years, fever 5 days, RDT negative, took coartem for 3 days but no improvement, headache
+==============================================================================
+
+QUERIES SENT (2, include_domains=['ncdc.gov.ng', 'who.int', 'reliefweb.int', 'afro.who.int']):
+  - 'Ondo Nigeria outbreak Lassa fever cholera meningitis September 2026'
+  - 'NCDC situation report'
+
+RESULTS RETURNED BY TAVILY (10 across 2 queries):
+  query 'Ondo Nigeria outbreak Lassa fever cholera meningitis September 2026' -> 5 results
+    [kept] ncdc.gov.ng
+      title:     [PDF] Lassa Fever Situation Report
+      url:       https://ncdc.gov.ng/themes/common/files/sitreps/2c311ea5d133f34c14cf42ee191c99d6.pdf
+      published: (none)
+    [kept] reliefweb.int
+      title:     NCDC Lassa Fever Situation Report Epi Week 34: 17th – 23rd August 2026 - Nigeria | ReliefWeb
+      url:       https://reliefweb.int/report/nigeria/ncdc-lassa-fever-situation-report-epi-week-34-17th-23rd-august-2026
+      published: (none)
+    [kept] iris.who.int
+      title:     [PDF] WEEKLY BULLETIN ON OUTBREAKS AND OTHER EMERGENCIES
+      url:       https://iris.who.int/server/api/core/bitstreams/753a02f5-870a-4091-8983-fa0af0d8945c/content
+      published: (none)
+    [kept] www.afro.who.int
+      title:     CSM: Nigeria declares outbreak over and underscores WHO’s role in combating the disease. | WHO | Regional Offi
+      url:       https://www.afro.who.int/countries/nigeria/news/csm-nigeria-declares-outbreak-over-and-underscores-whos-role-combating-disease
+      published: (none)
+    [kept] www.ncdc.gov.ng
+      title:     Nigeria Centre for Disease Control and Prevention
+      url:       https://www.ncdc.gov.ng/news/121/early-results-of-lassa-virus-sequencing-%26-implications-for-current-outbreak-response-in-nigeria
+      published: (none)
+  query 'NCDC situation report' -> 5 results
+    [kept] ncdc.gov.ng
+      title:     [PDF] Lassa Fever Situation Report
+      url:       https://ncdc.gov.ng/themes/common/files/sitreps/b0fedda076a0b27d21d5a09678dd69a0.pdf
+      published: (none)
+    [dropped: duplicate of an earlier query's result] reliefweb.int
+      title:     NCDC Lassa Fever Situation Report Epi Week 34: 17th - ReliefWeb
+      url:       https://reliefweb.int/report/nigeria/ncdc-lassa-fever-situation-report-epi-week-34-17th-23rd-august-2026
+      published: (none)
+    [kept] www.afro.who.int
+      title:     Infographics - WHO | Regional Office for Africa
+      url:       https://www.afro.who.int/news/infographics?page=426
+      published: (none)
+    [kept] ncdc.gov.ng
+      title:     Nigeria Centre for Disease Control and Prevention
+      url:       https://ncdc.gov.ng/news/541/invitation-to-tender
+      published: (none)
+    [dropped: duplicate of an earlier query's result] iris.who.int
+      title:     [PDF] WEEKLY BULLETIN ON OUTBREAKS AND OTHER EMERGENCIES
+      url:       https://iris.who.int/server/api/core/bitstreams/753a02f5-870a-4091-8983-fa0af0d8945c/content
+      published: (none)
+
+  -> 8 unique trusted results sent to the extractor
+
+EXTRACTOR: tavily: 2 searches, 8 results, 1 signals kept, 1 dropped
+
+SIGNALS KEPT (1):
+  + Lassa Fever / Ondo: status=active, report_date=2026-08-23
+      https://ncdc.gov.ng/themes/common/files/sitreps/2c311ea5d133f34c14cf42ee191c99d6.pdf
+
+SIGNALS DROPPED (1):
+  - Lassa Fever / Ondo (status=active): URL not among the search results (invented or altered)
+      url=https://www.ncdc.gov.ng/themes/common/files/sitreps/b0fedda076a0b27d21d5a09678dd69a0.pdf report_date='2026-08-23'
+
+CONTEXT: status=ok source=tavily
+  message: Checked 8 results from trusted sources for Ondo.
+  baseline (1 static endemicity entries):
+    . Lassa fever / Ondo: status=endemic, in_season=False
+
+==============================================================================
+VERIFICATION AGAINST THE REAL API
+==============================================================================
+  [PASS] domain restriction: every URL Tavily returned is on a trusted domain: 10 URLs from ['iris.who.int', 'ncdc.gov.ng', 'reliefweb.int', 'www.afro.who.int', 'www.ncdc.gov.ng']
+  [PASS] date parsing: every kept signal has a real, non-future date: Lassa Fever=2026-08-23
+  [PASS] cache file written: .cache/outbreak/tavily_ondo_2026-09-22.json
+  [PASS] second identical check makes zero Tavily calls: 0 new calls; note=cache hit (tavily_ondo_2026-09-22.json)
+  [PASS] cached context is identical
+  [PASS] a different state (Lagos) is a separate cache key and does search: 2 new calls -> tavily_lagos_2026-09-22.json
+  [PASS] Lagos is then cached too
+
+TRIAGE: level=refer_now status=complete
+  lassa_suspected=True

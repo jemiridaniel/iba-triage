@@ -180,7 +180,34 @@ def test_filter_signals(overrides: dict, kept: bool) -> None:
     )
     signals, dropped = filter_signals([sig], RESULTS, TODAY)
     assert (len(signals) == 1) is kept
-    assert dropped == (0 if kept else 1)
+    assert len(dropped) == (0 if kept else 1)
+    if not kept:
+        assert dropped[0][1]  # every drop carries a reason, for the trace
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected"),
+    [
+        ({"url": None}, "no URL"),
+        # Seen live on 2026-09-22 (FEEDBACK F12): the model added "www." to a real NCDC URL.
+        ({"url": LASSA_URL.replace("https://", "https://www.")}, "not among the search results"),
+        ({"report_date": None}, "no report date"),
+        ({"report_date": "last week"}, "unparseable"),
+        ({"report_date": "2026-12-01"}, "future"),
+    ],
+)
+def test_every_drop_says_why(overrides: dict, expected: str) -> None:
+    sig = ExtractedSignal(
+        **{
+            "disease": "Lassa fever",
+            "state": "Ondo",
+            "report_date": "2026-09-18",
+            "url": LASSA_URL,
+            **overrides,
+        }
+    )
+    _, dropped = filter_signals([sig], RESULTS, TODAY)
+    assert expected in dropped[0][1]
 
 
 def test_untrusted_domain_dropped_even_if_in_results() -> None:

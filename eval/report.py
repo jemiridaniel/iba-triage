@@ -95,25 +95,27 @@ def metrics(rows: list[dict]) -> dict[str, Any]:
 
 
 def lassa_lift(rows: list[dict]) -> dict[str, dict] | None:
-    """Same Lassa cases run with outbreak=off vs outbreak=mock, per config."""
+    """Same Lassa cases run with outbreak=off vs with a live signal, per config.
+
+    Prefers the real-Tavily arm (outbreak=live) and falls back to the mock arm, so the
+    chart says which it is rather than silently mixing them.
+    """
     out = {}
     for config in {r["config"] for r in rows}:
-        off = {
-            r["id"]: r
-            for r in rows
-            if r["config"] == config
-            and r["outbreak_mode"] == "off"
-            and r["category"] == "suspected_lassa"
-            and not r.get("error")
-        }
-        mock = {
-            r["id"]: r
-            for r in rows
-            if r["config"] == config
-            and r["outbreak_mode"] == "mock"
-            and r["category"] == "suspected_lassa"
-            and not r.get("error")
-        }
+
+        def arm(mode: str, config: str = config) -> dict[str, dict]:
+            return {
+                r["id"]: r
+                for r in rows
+                if r["config"] == config
+                and r["outbreak_mode"] == mode
+                and r["category"] == "suspected_lassa"
+                and not r.get("error")
+            }
+
+        off = arm("off")
+        with_mode = "live" if arm("live") else "mock"
+        mock = arm(with_mode)
         ids = sorted(set(off) & set(mock))
         if not ids:
             continue
@@ -135,6 +137,8 @@ def lassa_lift(rows: list[dict]) -> dict[str, dict] | None:
         out[config] = {
             "n": len(ids),
             "ids": ids,
+            "source": with_mode,  # "live" = real Tavily, "mock" = template signal
+            "live_ids": sorted(i for i in ids if mock[i].get("live_signal")),
             "without": stats(off, ids),
             "with": stats(mock, ids),
         }
@@ -235,7 +239,11 @@ def charts(groups: dict[tuple, dict], lift: dict | None, out: Path) -> list[str]
             [x + 0.2 for x in xs],
             with_,
             0.4,
-            label="With live outbreak signal (mock)",
+            label=(
+                "With live outbreak search (Tavily)"
+                if lift[config].get("source") == "live"
+                else "With live outbreak signal (mock)"
+            ),
             color="#0369a1",
         )
         ax.bar_label(b1, fmt="%.0f", fontsize=8)
@@ -417,11 +425,21 @@ def render(
             )
         lines.append("")
     if lift:
+        live_arm = any(v.get("source") == "live" for v in lift.values())
+        found = sorted({i for v in lift.values() for i in v.get("live_ids", [])})
         lines += [
             "## Outbreak lift (suspected-Lassa cases)",
             "",
-            "Same cases run with live outbreak search off (static baseline only) and with a mock live "
-            "Lassa signal for the case's state. Mock data stands in for Tavily until credits arrive.",
+            "Same cases run with live outbreak search off (static baseline only) and with it on.",
+            (
+                "The 'with' arm is the **real Tavily search** over trusted public-health domains, "
+                f"cached per state per day. A live Lassa signal for the patient's own state was "
+                f"found for {len(found)} of the {sum(v['n'] for v in lift.values())} cases "
+                f"({', '.join(found) or 'none'}); the rest fall back to static endemicity, which "
+                "is why the lift is smaller than the mock run suggested."
+                if live_arm
+                else "The 'with' arm uses a mock live Lassa signal standing in for Tavily."
+            ),
             "",
             "| Config | n | | Lassa in top 3 | Refer now | Under-triage |",
             "|---|---|---|---|---|---|",

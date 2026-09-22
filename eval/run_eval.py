@@ -9,6 +9,7 @@
     case  per-vignette setting (mock live signal only where the vignette says "mock_live")
     off   no live outbreak search for any case (static baseline only)
     mock  a mock live Lassa signal for every case's state (measures Tavily lift without Tavily)
+    live  the real Tavily search, cached per state per day (spends Tavily credits)
 
 Results are appended to eval/results/<config>__<outbreak>.jsonl, one line per case; re-running
 skips cases already in the file (resumable). LLM calls go through the disk cache, so repeated
@@ -35,6 +36,7 @@ from backend.app.graph.pipeline import build_deps, run_triage
 from backend.app.graph.state import Deps, TriageRequest
 from backend.app.llm.router import THINKING_OFF_KWARGS, EvalConfig
 from backend.app.llm.spend import SpendLimitError
+from backend.app.rules.danger_signs import active_outbreak
 from backend.app.schemas import TriageResult
 from backend.app.tools.outbreak import SearchResult
 
@@ -114,8 +116,22 @@ class TemplateSearch:
 
 
 def outbreak_search(mode: str, case: dict, template: Path):
-    live = mode == "mock" or (mode == "case" and case.get("outbreak", "").startswith("mock_live"))
-    return TemplateSearch(template, case["state"]) if (live and case.get("state")) else None
+    """The search client for this case, or None for no live search.
+
+    `live` is the exception: it keeps whatever build_deps wired up (the real Tavily client).
+    """
+    mock = mode == "mock" or (mode == "case" and case.get("outbreak", "").startswith("mock_live"))
+    return TemplateSearch(template, case["state"]) if (mock and case.get("state")) else None
+
+
+def had_live_signal(case: dict, mode: str, result: TriageResult | None = None) -> bool:
+    """Did this run see a live outbreak signal for the case's state? Drives `gold_live`."""
+    if mode == "live":
+        # A real search may find nothing for this state; only a Lassa signal that the
+        # deterministic rule would act on counts as "live" for gold purposes.
+        signals = result.outbreak.signals if (result and result.outbreak) else []
+        return active_outbreak(signals, case.get("state"), "lassa") is not None
+    return mode == "mock" or (mode == "case" and case.get("outbreak", "").startswith("mock_live"))
 
 
 def estimate_cost(settings, config: str, n: int) -> float:
@@ -177,7 +193,7 @@ def summarise(
         chunk = store.get(chunk_id) if store else None
         return f"{chunk_id} | {chunk.section} (p.{chunk.page})" if chunk else chunk_id
 
-    live = mode == "mock" or (mode == "case" and case.get("outbreak", "").startswith("mock_live"))
+    live = had_live_signal(case, mode, result)
     return {
         "id": case["id"],
         "category": case["category"],
@@ -235,7 +251,8 @@ def summarise(
 
 
 def run_case(deps: Deps, case: dict, config: EvalConfig, mode: str, template: Path) -> dict:
-    deps.outbreak.search = outbreak_search(mode, case, template)
+    if mode != "live":  # `live` keeps the real Tavily client build_deps wired up
+        deps.outbreak.search = outbreak_search(mode, case, template)
     request = TriageRequest(text=case["text"], state=case.get("state"), skip_questions=True)
     start = time.perf_counter()
     result = run_triage(request, deps, config)
@@ -331,7 +348,7 @@ def main() -> int:
     parser.add_argument(
         "--config", choices=["routed", "reason-only", "fast-only"], default="routed"
     )
-    parser.add_argument("--outbreak", choices=["case", "off", "mock"], default="case")
+    parser.add_argument("--outbreak", choices=["case", "off", "mock", "live"], default="case")
     parser.add_argument("--mock-template", type=Path, default=MOCK_TEMPLATE)
     parser.add_argument("--category")
     parser.add_argument("--ids", nargs="*")
