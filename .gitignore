@@ -15,6 +15,7 @@ __pycache__/
 
 # Built guideline index and raw source documents (licence-dependent; see data/sources.yaml)
 data/index/
+data/index_fake/
 data/raw/
 *.pdf
 
