@@ -7,6 +7,7 @@ SpendLimitError is never caught: a budget stop must not look like a triage resul
 from __future__ import annotations
 
 import re
+from datetime import date
 from typing import Any
 
 from backend.app.graph.prompts import (
@@ -335,6 +336,13 @@ def rules_post(state: TriageState, deps: Deps) -> dict[str, Any]:
     return {"post": post, "_note": note}
 
 
+def _excerpt(text: str, limit: int = 320) -> str:
+    flat = " ".join(
+        text.replace("[FAKE TEST PASSAGE - placeholder, not guideline text]", "").split()
+    )
+    return flat if len(flat) <= limit else flat[:limit].rsplit(" ", 1)[0] + " …"
+
+
 def _anchors(deps: Deps, anchors: list[tuple[str, str]]) -> list[str]:
     """Chunk IDs for guideline anchor phrases that are present in the index."""
     if deps.store is None:
@@ -372,6 +380,7 @@ def _resolve_citation(ref: str, deps: Deps, signals: list) -> Citation | None:
             section=chunk.section,
             page=chunk.page,
             page_end=chunk.page_end,
+            excerpt=_excerpt(chunk.text),
         )
     for sig in signals:
         if sig.url and ref == sig.url:
@@ -426,10 +435,16 @@ def compose(state: TriageState, deps: Deps) -> dict[str, Any]:
 
     summary, _ = strip_doses(out.summary)
     note, _ = strip_doses(out.referral_note)
-    lines = [note.rstrip()]
+    label = TRIAGE_LABELS[post.triage_level]
+    header = f"IBA TRIAGE NOTE · {date.today():%d %b %Y} · {label.upper()}"
+    if case.state:
+        header += f" · {case.state}"
+    lines = [header, note.rstrip()]
     for d in post.doses:
         flag = "" if d.verified else " (UNVERIFIED table)"
         lines.append(f"Dose from table{flag}: {d.drug}, {d.weight_band}: {d.regimen}.")
+    if post.triage_level != TriageLevel.TREAT_MONITOR:
+        lines.append("Referred to: ____________________   By: ____________________")
     lines.append(_DISCLAIMER["pcm" if case.language == "pcm" else "en"])
     return {
         "compose": ComposeOutput(summary=summary, referral_note="\n\n".join(lines)),

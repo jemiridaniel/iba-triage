@@ -68,12 +68,21 @@ LIVE_ONDO = OutbreakSignal(
 UNRESPONSIVE = "fever 5 days, sore throat, took coartem but no improvement"
 
 
-def test_baseline_tier_refers_within_24h() -> None:
+def test_baseline_case_definition_met_refers_now() -> None:
     case = PatientCase(fever_days=5, state="Ondo", raw_text=UNRESPONSIVE)
     finding = lassa_assessment(case, baseline_ondo(), [])
     assert finding.basis == "baseline"
-    assert finding.floor == TriageLevel.REFER_24H
+    assert finding.floor == TriageLevel.REFER_NOW
     assert any("NCDC suspected-case definition" in c for c in finding.criteria)
+
+
+def test_baseline_partial_features_refer_within_24h() -> None:
+    text = "fever 5 days, headache, took coartem but no improvement"  # no listed symptom
+    finding = lassa_assessment(
+        PatientCase(fever_days=5, state="Ondo", raw_text=text), baseline_ondo(), []
+    )
+    assert finding.floor == TriageLevel.REFER_24H
+    assert any("Partial features" in c for c in finding.criteria)
 
 
 def test_live_tier_refers_now() -> None:
@@ -82,9 +91,14 @@ def test_live_tier_refers_now() -> None:
     assert finding.basis == "live" and finding.floor == TriageLevel.REFER_NOW
 
 
-def test_baseline_needs_raised_suspicion() -> None:
-    # Definition met but treatment response unknown: baseline alone doesn't trigger.
+def test_baseline_definition_alone_is_enough() -> None:
+    # Treatment response unknown, but the case definition is met in an endemic state.
     case = PatientCase(fever_days=5, state="Ondo", raw_text="fever 5 days, sore throat")
+    assert lassa_assessment(case, baseline_ondo(), []).floor == TriageLevel.REFER_NOW
+
+
+def test_baseline_without_features_is_none() -> None:
+    case = PatientCase(fever_days=5, state="Ondo", raw_text="fever 5 days, headache")
     assert lassa_assessment(case, baseline_ondo(), []) is None
 
 
@@ -126,7 +140,7 @@ def test_baseline_citation_resolves_through_anchor() -> None:
 
     (lassa,) = [s for s in ENDEMICITY.for_state("Edo", TODAY, resolve) if "Lassa" in s.disease]
     assert lassa.citation == "ncdc-lassa:0003"
-    assert seen[0][0] == "ncdc-lassa"
+    assert seen[0] == ("ncdc-lassa-advisory-2026", "particularly in endemic and high-burden states")
 
 
 def test_outbreak_tool_always_adds_baseline(tmp_path: Path) -> None:
@@ -303,7 +317,7 @@ def run_regression(tmp_path: Path, *, live: bool):
 
 def test_regression_baseline_only_still_suspects_lassa(tmp_path: Path) -> None:
     r = run_regression(tmp_path, live=False)
-    assert r.triage_level == TriageLevel.REFER_24H  # no longer "Treat & monitor"
+    assert r.triage_level == TriageLevel.REFER_NOW  # no longer "Treat & monitor"
     lassa = r.differential[0]
     assert lassa.condition == "Lassa fever" and lassa.likelihood == "moderate"
     assert lassa.source == "rule"
@@ -313,11 +327,11 @@ def test_regression_baseline_only_still_suspects_lassa(tmp_path: Path) -> None:
     assert any("provisional" in w for w in r.warnings)
 
 
-def test_regression_live_signal_escalates_further(tmp_path: Path) -> None:
+def test_regression_live_signal_raises_likelihood(tmp_path: Path) -> None:
     r = run_regression(tmp_path, live=True)
     assert r.triage_level == TriageLevel.REFER_NOW
     lassa = r.differential[0]
-    assert lassa.condition == "Lassa fever" and lassa.likelihood == "high"
+    assert lassa.condition == "Lassa fever" and lassa.likelihood == "high"  # baseline: moderate
     assert any("Active Lassa outbreak" in c for c in lassa.reasons)
 
 
@@ -363,3 +377,18 @@ def test_green_rdt_negative_case_is_actionable(tmp_path: Path) -> None:
 )
 def test_citation_refs_are_normalised(raw: str, expected: str) -> None:
     assert nodes._normalise_ref(raw) == expected
+
+
+def test_unicode_hyphens_are_matched() -> None:
+    # Super writes U+2011 non-breaking hyphens ("follow‑up"); seen on the phone test.
+    rule = ActionItem(text="Review in 3 days if the fever persists.", source="rule")
+    model = ActionItem(text="Schedule follow‑up visit in 3 days")
+    merged, n = merge_advice([rule, model])
+    assert n == 1 and merged[0].details == ["Schedule follow‑up visit in 3 days"]
+
+
+def test_unicode_dash_doses_are_stripped() -> None:
+    from backend.app.rules.dosing import DOSE_PLACEHOLDER, strip_doses
+
+    cleaned, n = strip_doses("give 10–20 mg/kg")
+    assert n == 1 and DOSE_PLACEHOLDER in cleaned

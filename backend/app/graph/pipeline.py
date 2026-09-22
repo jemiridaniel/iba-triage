@@ -79,6 +79,7 @@ def traced(step: str, fn: NodeFn, kind: str, router_step: str | None, deps: Deps
             completion_tokens=sum(r.completion_tokens for r in records),
             reasoning_tokens=sum(reasoning_counts) if reasoning_counts else None,
             latency_ms=round(latency_ms, 1),
+            model_latency_ms=round(sum(r.latency_ms for r in records), 1) if records else None,
             cost_usd=round(sum(costs), 8) if costs else None,
             cached=bool(records) and all(r.cached for r in records),
             note=update.pop("_note", None) or _error_note(update),

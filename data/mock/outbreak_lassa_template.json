@@ -1,0 +1,11 @@
+{
+  "_note": "MOCK / SYNTHETIC search results used by eval/run_eval.py --outbreak mock to measure Tavily lift without Tavily. {state} and {slug} are filled in per case. Not real surveillance data.",
+  "results": [
+    {
+      "title": "MOCK TEST DATA - Lassa fever situation report, epidemiological week 37, 2026 ({state})",
+      "url": "https://ncdc.gov.ng/diseases/sitreps/MOCK-lassa-{slug}-2026-w37",
+      "published_date": "2026-09-18",
+      "content": "MOCK / SYNTHETIC TEST DATA. Lassa fever situation report, week 37 2026. New confirmed Lassa fever cases were reported this week in {state} State, which has active transmission. Health workers should maintain a high index of suspicion for fever not responding to antimalarials."
+    }
+  ]
+}

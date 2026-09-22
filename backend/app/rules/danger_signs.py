@@ -20,6 +20,7 @@ TODO: attach guideline section citations once the index is built (week 1, ingest
 import re
 from dataclasses import dataclass, field
 
+from backend.app.rules.text import ascii_punct
 from backend.app.schemas import (
     DANGER_SIGN_LABELS,
     DangerSignCode,
@@ -172,6 +173,7 @@ def _is_negated(text: str, start: int, window: int = 3) -> bool:
 
 
 def detect_from_text(text: str) -> list[DangerSignHit]:
+    text = ascii_punct(text)
     hits: list[DangerSignHit] = []
     for code, patterns in _RULES.items():
         match = next(
@@ -271,7 +273,7 @@ def lassa_case_definition(case: PatientCase) -> list[str]:
         return []
     if case.temperature_c is not None and case.temperature_c < 38.0:
         return []
-    text = " ".join([case.raw_text or "", *case.symptoms])
+    text = ascii_punct(" ".join([case.raw_text or "", *case.symptoms]))
     return [name for name, rx in _LASSA_SYMPTOM_RES.items() if rx.search(text)]
 
 
@@ -330,10 +332,15 @@ def lassa_assessment(
 ) -> LassaFinding | None:
     """Lassa suspicion from the NCDC 2018 case definition plus place.
 
-    live signal in the state:   definition met, OR fever >= 3 days with no treatment
-                                response, OR abnormal bleeding          -> Refer now
-    baseline endemic state only: definition met AND a raised index of suspicion
-                                (no treatment response, contact, or bleeding) -> Refer within 24h
+    live signal in the state:    definition met, OR fever >= 3 days with no treatment
+                                 response, OR abnormal bleeding                -> Refer now
+    endemic state (baseline):    definition met                                -> Refer now
+                                 partial: fever >= 3 days with no treatment
+                                 response or contact, no listed symptom        -> Refer within 24h
+
+    Policy (2026-09-22, pending clinician review; see docs/CLINICAL_REVIEW.md): NCDC treats
+    any suspected case as isolate-and-notify, and a missed case can infect the health worker,
+    so under-triage costs far more than over-triage.
     """
     symptoms = lassa_case_definition(case)
     no_response = no_treatment_response(case)
@@ -362,10 +369,15 @@ def lassa_assessment(
         return None
 
     base = endemic_baseline(signals, case.state, "lassa")
-    if base is not None and symptoms and (no_response or contact or bleeding):
-        season = " (peak season)" if base.in_season else ""
-        criteria.append(f"{base.state} is a Lassa-endemic state{season} (baseline, no live data)")
-        return LassaFinding("baseline", base, TriageLevel.REFER_24H, criteria)
+    if base is None:
+        return None
+    season = " (peak season)" if base.in_season else ""
+    place = f"{base.state} is a Lassa-endemic state{season} (baseline, no live data)"
+    if symptoms or bleeding:
+        return LassaFinding("baseline", base, TriageLevel.REFER_NOW, [*criteria, place])
+    if (case.fever_days or 0) >= 3 and (no_response or contact):
+        criteria.append("Partial features only: no listed symptom of the NCDC case definition")
+        return LassaFinding("baseline", base, TriageLevel.REFER_24H, [*criteria, place])
     return None
 
 

@@ -178,3 +178,15 @@ def test_compose_prompt_forbids_claiming_actions_were_done() -> None:
     post = PostOutput(status="complete", triage_level=TriageLevel.REFER_NOW, triage_rationale="r")
     system = compose_messages(PatientCase(), post)[0]["content"]
     assert "Never state that an action was done" in system
+
+
+def test_referral_note_has_header_and_referral_blanks(tmp_path: Path) -> None:
+    from backend.app.graph.state import PostOutput
+
+    deps, _ = make_deps(tmp_path, {"compose": COMPOSE_EN})
+    s = state_for("fever")
+    s.case = PatientCase(state="Ondo")
+    s.post = PostOutput(status="complete", triage_level=TriageLevel.REFER_NOW, triage_rationale="r")
+    note = nodes.compose(s, deps)["compose"].referral_note
+    assert note.startswith("IBA TRIAGE NOTE · ") and "REFER NOW · Ondo" in note.splitlines()[0]
+    assert "Referred to: ____" in note
