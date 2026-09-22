@@ -5,7 +5,17 @@
       "Read(//opt/homebrew/bin/**)",
       "Bash(pyenv versions *)",
       "Bash(curl -LsSf https://astral.sh/uv/install.sh)",
-      "Bash(sh)"
+      "Bash(sh)",
+      "Bash(cp .env.example .env)",
+      "Bash(git check-ignore *)",
+      "Bash(python3 -c ' *)",
+      "Bash(python3 -)",
+      "Bash(git switch *)",
+      "Bash(grep -Ei '\\(^|/\\)\\\\.env$|\\\\.pdf$|spend\\\\.json|\\\\.cache')",
+      "Bash(grep -Ei 'api[_-]?key\\\\s*=\\\\s*\\\\S{8,}|Bearer [A-Za-z0-9]')",
+      "Bash(git commit *)",
+      "Bash(git mv *)",
+      "Bash(python3 -c \"import json;print\\(json.load\\(open\\('.cache/spend.json'\\)\\)\\)\")"
     ]
   }
 }

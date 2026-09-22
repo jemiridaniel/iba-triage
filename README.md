@@ -23,8 +23,16 @@ models, via one client ([backend/app/llm/client.py](backend/app/llm/client.py)) 
 - enforces a hard spend cap (`MAX_SPEND_USD`): each live call's worst-case cost is checked
   against a ledger before it's sent.
 
-Per-step routing (Nano for intake, Ultra for reasoning, Super for the summary) and the eval
-numbers will be documented here as they land.
+Per-step routing ([backend/app/llm/router.py](backend/app/llm/router.py)): the fast model
+with reasoning **off** for intake and outbreak extraction, Nemotron 3 Ultra with reasoning
+**on** for the single reasoning step, Nemotron 3 Super with reasoning off for the summary and
+referral note. Each step's reasoning is configurable (`REASONING_<STEP>`).
+
+Measured on Token Factory: reasoning is switched off with
+`chat_template_kwargs={"enable_thinking": false}` (a `/no_think` system prompt is ignored).
+Turning it off for intake cut completion tokens ~7x (892 → 128 on Nano) and latency ~3–5x.
+A reply cut off mid-reasoning returns the raw reasoning in `content`, so the client rejects
+any `finish_reason="length"` reply rather than parsing it. Eval numbers will follow.
 
 **Embeddings.** Token Factory currently serves no NVIDIA embedding model, so the guideline
 index uses `Qwen/Qwen3-Embedding-8B` (the only embedding model in the catalogue). Every
@@ -55,7 +63,7 @@ Other scripts:
 |---|---|---|
 | `uv run python -m scripts.list_models --write-prices` | Writes a `MODEL_PRICES` example into `.env.example` | No |
 | `uv run python -m scripts.spend [--reset]` | Shows (or resets) cumulative live spend vs. the cap | No |
-| `uv run python -m scripts.smoke_nano` | One `MODEL_FAST` call parsing a synthetic case | ~$0.0002 |
+| `uv run python -m scripts.smoke_fast [--model ID] [--reasoning default\|kwargs-off\|no-think]` | One live call parsing a synthetic case; prints the raw response shape | ~$0.0001–0.0004 |
 | `uv run python -m backend.app.rag.ingest --dry-run` | Chunks PDFs in `data/raw/` | No |
 | `uv run python -m backend.app.rag.ingest` | Chunks + embeds into `data/index/` | Yes (embeddings) |
 

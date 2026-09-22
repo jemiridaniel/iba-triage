@@ -40,6 +40,16 @@ class Settings(BaseSettings):
     llm_max_retries: int = 2
     # Every live call sends a max_tokens so its worst-case cost is bounded.
     llm_default_max_tokens: int = 2048
+    # Per-step reasoning. Off = chat_template_kwargs {"enable_thinking": false}, the switch
+    # Token Factory honours for Nemotron (a "/no_think" system prompt is ignored).
+    reasoning_intake: bool = False
+    reasoning_outbreak: bool = False
+    reasoning_reason: bool = True
+    reasoning_compose: bool = False
+    # Completion budgets. Reasoning tokens count toward max_tokens, and a truncated reply
+    # is rejected, so reasoning steps need a much larger budget.
+    max_tokens_reasoning_off: int = 1024
+    max_tokens_reasoning_on: int = 8192
     # Hard cap on cumulative live spend, tracked in CACHE_DIR/spend.json. Raise it deliberately.
     max_spend_usd: float = 0.50
     log_level: str = "INFO"
