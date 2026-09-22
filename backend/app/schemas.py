@@ -91,6 +91,8 @@ class PatientCase(BaseModel):
     danger_signs: list[DangerSignCode] = []  # flagged by the intake model
     antimalarial_taken: bool | None = None
     antimalarial_no_response: bool | None = None
+    antibiotic_taken: bool | None = None
+    antibiotic_no_response: bool | None = None
     state: str | None = None
     lga: str | None = None
     language: Literal["en", "pcm"] = "en"
@@ -102,9 +104,13 @@ class PatientCase(BaseModel):
 class OutbreakSignal(BaseModel):
     disease: str
     state: str
-    status: Literal["active", "declining", "over", "unknown"] = "unknown"
+    status: Literal["active", "declining", "over", "endemic", "unknown"] = "unknown"
     report_date: date | None = None
     url: str | None = None
+    # "live": from current search results; "baseline": static endemicity from guidelines.
+    basis: Literal["live", "baseline"] = "live"
+    in_season: bool | None = None  # baseline only: within the disease's usual peak months
+    citation: str | None = None  # baseline only: guideline chunk ID supporting the entry
 
 
 class GuidelineChunk(BaseModel):
@@ -128,6 +134,7 @@ class Citation(BaseModel):
     doc_id: str | None = None
     section: str | None = None
     page: int | None = None
+    page_end: int | None = None
     url: str | None = None
     source_date: date | None = None
 
@@ -158,6 +165,7 @@ class ActionItem(BaseModel):
     text: str
     citations: list[str] = []
     source: Literal["llm", "rule"] = "llm"
+    details: list[str] = []  # model advice merged into a rule action (rule wording wins)
 
 
 class DoseRecommendation(BaseModel):
@@ -169,11 +177,17 @@ class DoseRecommendation(BaseModel):
 
 
 class OutbreakContext(BaseModel):
+    # status/source/checked_at describe the LIVE search; baseline is always present.
     status: Literal["ok", "unavailable"]
     source: Literal["tavily", "mock", "none"]
     message: str
     checked_at: datetime | None = None
-    signals: list[OutbreakSignal] = []
+    signals: list[OutbreakSignal] = []  # live
+    baseline: list[OutbreakSignal] = []  # static endemicity for the patient's state
+
+    @property
+    def all_signals(self) -> list[OutbreakSignal]:
+        return [*self.signals, *self.baseline]
 
 
 class TraceStep(BaseModel):

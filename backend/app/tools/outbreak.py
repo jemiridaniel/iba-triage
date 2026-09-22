@@ -27,6 +27,7 @@ from pydantic import BaseModel, field_validator
 from backend.app.llm.client import LLMClient, LLMError
 from backend.app.llm.router import EvalConfig, call_json
 from backend.app.schemas import OutbreakContext, OutbreakSignal
+from backend.app.tools.endemicity import AnchorResolver, Endemicity
 
 logger = logging.getLogger("iba.outbreak")
 
@@ -190,19 +191,31 @@ class OutbreakTool:
         *,
         eval_config: EvalConfig = "routed",
         today: Callable[[], date] = date.today,
+        endemicity: Endemicity | None = None,
+        resolve: AnchorResolver | None = None,
     ):
         self.client = client
         self.search = search
+        self.endemicity = endemicity or Endemicity([])
+        self.resolve = resolve
         self.cache_dir = cache_dir / "outbreak"
         self.eval_config = eval_config
         self.today = today
         self.last_note: str | None = None  # for the decision trace
 
     def check(self, state: str | None) -> OutbreakContext:
+        """Live signals (if search works) plus the static baseline, always."""
+        context = self._check_live(state)
+        baseline = self.endemicity.for_state(state, self.today(), self.resolve)
+        if context.status == "unavailable" and baseline:
+            context.message = f"{context.message} Using baseline endemicity only."
+        return context.model_copy(update={"baseline": baseline})
+
+    def _check_live(self, state: str | None) -> OutbreakContext:
         if not state:
             return self._unavailable("No state selected, so outbreak data was not checked.")
         if self.search is None:
-            return self._unavailable("Outbreak data unavailable: live search is not configured.")
+            return self._unavailable("Live outbreak data unavailable: search is not configured.")
 
         today = self.today()
         cache_file = self.cache_dir / f"{self.search.source}_{_norm_state(state)}_{today}.json"
@@ -219,7 +232,7 @@ class OutbreakTool:
         except Exception as exc:  # network, auth, quota: degrade, never crash triage
             logger.warning("outbreak search failed: %s", type(exc).__name__)
             return self._unavailable(
-                f"Outbreak data unavailable: search failed ({type(exc).__name__})."
+                f"Live outbreak data unavailable: search failed ({type(exc).__name__})."
             )
 
         signals: list[OutbreakSignal] = []
@@ -236,7 +249,7 @@ class OutbreakTool:
             except LLMError as exc:
                 logger.warning("outbreak extraction failed: %s", type(exc).__name__)
                 return self._unavailable(
-                    "Outbreak data unavailable: could not read search results."
+                    "Live outbreak data unavailable: could not read search results."
                 )
             signals, dropped = filter_signals(extraction.signals, results, today)
 

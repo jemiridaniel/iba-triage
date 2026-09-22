@@ -50,6 +50,17 @@ class VectorStore:
         """Look up a chunk by ID (used to validate model citations)."""
         return self._by_id.get(chunk_id)
 
+    def find(self, doc_id: str, phrase: str) -> GuidelineChunk | None:
+        """First chunk of `doc_id` containing `phrase` (case- and whitespace-insensitive).
+
+        Lets deterministic rules cite the exact guideline passage they are based on.
+        """
+        needle = " ".join(phrase.lower().split())
+        for chunk in self.chunks:
+            if chunk.doc_id == doc_id and needle in " ".join(chunk.text.lower().split()):
+                return chunk
+        return None
+
     def search(
         self, query: Iterable[float], k: int = 5, doc_ids: set[str] | None = None
     ) -> list[SearchHit]:

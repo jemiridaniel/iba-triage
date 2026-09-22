@@ -1,0 +1,45 @@
+# Static endemicity baseline: used on every case, with live outbreak signals (Tavily) on top.
+# If live data is unavailable, triage still knows that e.g. Ondo is a Lassa hotspot.
+#
+# !!! PROVISIONAL !!!  (verified: false)
+# The state lists below have NOT yet been checked against a current NCDC source. NCDC's
+# website returned HTTP 522 when we tried to fetch the Lassa situation reports and the CSM
+# guides (2026-09-22), and the downloaded guidelines do not list endemic states. Each list
+# must be confirmed against the latest NCDC situation report / guideline and `verified` set to
+# true, with `source` pointing at the document actually read. The UI labels unverified
+# entries "baseline (provisional)".
+#
+# `anchor`: (doc_id, phrase) in an indexed guideline that supports using place of residence
+# as a risk factor; resolved to a chunk ID at runtime for citation.
+
+diseases:
+  lassa:
+    disease: Lassa fever
+    verified: false
+    states: [Ondo, Edo, Bauchi, Taraba, Ebonyi]
+    peak_months: [12, 1, 2, 3, 4]
+    source: >-
+      TO CONFIRM: NCDC Lassa fever situation reports (states with the highest case burden).
+      Peak months per project spec (dry season, December-April); the NCDC 2018 guideline
+      foreword describes the large 2018 outbreak as January-May.
+    anchor: [ncdc-lassa, "travel to high risk/burden area of Lassa fever"]
+
+  csm:
+    disease: Cerebrospinal meningitis
+    verified: false
+    states: [Sokoto, Kebbi, Zamfara, Katsina, Kano, Jigawa, Yobe, Borno, Bauchi, Gombe]
+    peak_months: [12, 1, 2, 3, 4, 5, 6]
+    source: >-
+      TO CONFIRM: NCDC CSM Case Management Guide / situation reports (African meningitis
+      belt states in northern Nigeria; dry-season peak).
+    anchor: null
+
+  cholera:
+    disease: Cholera
+    verified: false
+    states: [Borno, Yobe, Adamawa, Bauchi, Zamfara, Katsina, Kano]
+    peak_months: [6, 7, 8, 9, 10]
+    source: >-
+      TO CONFIRM: NCDC cholera situation reports (states with recurrent outbreaks;
+      rainy-season peak). The NCDC AWD/cholera guideline does not list states.
+    anchor: null

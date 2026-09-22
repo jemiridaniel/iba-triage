@@ -2,82 +2,140 @@
 #
 # PDFs go in data/raw/<file> (gitignored). `rag/ingest.py` only ingests documents listed
 # here, so this file is also the licence register (CLAUDE.md rule 8).
-#
-# ALL URLs, editions and licence notes below are PLACEHOLDERS until confirmed by a human.
-# Set url_confirmed: true only after opening the link and checking edition + licence.
+# `scripts/fetch_sources.py` downloads every source with url_confirmed: true.
+# `url` may be a direct PDF or a publication landing page (the fetcher then finds the PDF link).
 # commit_text stays false unless the licence explicitly allows redistribution.
+#
+# Licences:
+#   WHO  - CC BY-NC-SA 3.0 IGO: attribution required, non-commercial use, share-alike.
+#   NCDC - Nigerian government publication; licence not stated. Use for retrieval and
+#          citation only; do not commit or redistribute the text.
 
 sources:
   - doc_id: nmep-malaria
     title: National Guidelines for the Diagnosis and Treatment of Malaria
     publisher: National Malaria Elimination Programme (NMEP), Federal Ministry of Health, Nigeria
-    url: https://nmcp.gov.ng/  # TODO: direct PDF link for the latest edition
+    url: https://nmcp.gov.ng/  # no direct PDF published; add data/raw/nmep-malaria.pdf manually
     url_confirmed: false
-    edition: "TODO: confirm latest edition/year"
+    edition: "4th edition (2020)"
     file: nmep-malaria.pdf
+    licence: unstated (government publication)
     licence_note: >-
-      TODO: unknown. Nigerian government publication; check the document's copyright page
-      or ask NMEP before committing any text. Keep the PDF local only.
+      Official PDF not posted on the NMEP site. Obtain via the NMEP e-Toolkit (Case
+      Management), info@nmep.gov.ng, or clinical contacts. Do not use third-party copies
+      (e.g. Scribd) as a cited source. Do not commit.
     commit_text: false
     used_for: [uncomplicated and severe malaria criteria, treatment, weight-band dosing table]
 
   - doc_id: who-malaria
     title: WHO Guidelines for Malaria
     publisher: World Health Organization
-    url: https://www.who.int/publications/i/item/guidelines-for-malaria  # TODO: confirm
-    url_confirmed: false
-    edition: "TODO: confirm version date (living guideline, updated periodically)"
+    url: https://www.who.int/publications/i/item/guidelines-for-malaria
+    url_confirmed: true
+    edition: "Living guideline (current version at fetch time; record the version date from the PDF)"
     file: who-malaria.pdf
+    licence: CC BY-NC-SA 3.0 IGO
     licence_note: >-
-      TODO: WHO publications are usually CC BY-NC-SA 3.0 IGO; verify on this document's
-      copyright page. Even if allowed, prefer fetching at build time over committing text.
+      CC BY-NC-SA 3.0 IGO. Attribution required ("WHO Guidelines for Malaria, World Health
+      Organization"); non-commercial use only; adaptations under the same licence. Fine for
+      the hackathon. Not committed; fetched at build time.
     commit_text: false
-    used_for: [danger signs, severe malaria definitions]
+    used_for: [danger signs, severe malaria definitions, test-before-treat, interim dosing source]
+
+  - doc_id: who-imci
+    title: Integrated Management of Childhood Illness (IMCI) Chart Booklet
+    publisher: World Health Organization
+    url: https://www.who.int/publications/m/item/integrated-management-of-childhood-illness---chart-booklet-(march-2014)
+    url_confirmed: true
+    edition: "March 2014"
+    file: who-imci.pdf
+    licence: CC BY-NC-SA 3.0 IGO
+    licence_note: >-
+      WHO publication; typically CC BY-NC-SA 3.0 IGO (confirm on the booklet's copyright
+      page). Attribution required; non-commercial use. Not committed.
+    commit_text: false
+    used_for: [paediatric general danger signs, fever follow-up intervals]
 
   - doc_id: ncdc-lassa
     title: National Guideline for Lassa Fever Case Management
     publisher: Nigeria Centre for Disease Control and Prevention (NCDC)
-    url: https://ncdc.gov.ng/diseases/guidelines  # TODO: direct PDF link
-    url_confirmed: false
-    edition: "TODO: confirm edition/year"
+    url: https://ncdc.gov.ng/themes/common/docs/protocols/92_1547068532.pdf
+    url_confirmed: true
+    edition: "2018"
     file: ncdc-lassa.pdf
-    licence_note: >-
-      TODO: unknown. Check NCDC terms / the document before committing any text.
+    licence: unstated (government publication)
+    licence_note: Government publication; licence not stated. Retrieval and citation only; do not commit.
     commit_text: false
-    used_for: [suspected-case definition, isolation and IPC, referral]
+    used_for: [suspected-case definition, isolation, referral, case management]
+
+  - doc_id: ncdc-vhf-ipc
+    title: National Infection Prevention and Control Guidelines for Viral Haemorrhagic Fevers
+    publisher: Nigeria Centre for Disease Control and Prevention (NCDC)
+    url: https://ncdc.gov.ng/themes/common/docs/protocols/341_1707300274.pdf
+    url_confirmed: true
+    edition: "2024 (per NCDC upload; confirm on the document)"
+    file: ncdc-vhf-ipc.pdf
+    licence: unstated (government publication)
+    licence_note: Government publication; licence not stated. Retrieval and citation only; do not commit.
+    commit_text: false
+    used_for: [isolation and IPC for suspected Lassa]
+
+  - doc_id: ncdc-lassa-advisory-2026
+    title: Joint Advisory to Doctors on Lassa Fever Vigilance
+    publisher: Nigeria Centre for Disease Control and Prevention (NCDC)
+    url: https://ncdc.gov.ng/themes/common/docs/protocols/374_1773064273.pdf
+    url_confirmed: true
+    edition: "March 2026"
+    file: ncdc-lassa-advisory-2026.pdf
+    licence: unstated (government publication)
+    licence_note: Government publication; licence not stated. Retrieval and citation only; do not commit.
+    commit_text: false
+    used_for: [index of suspicion, current vigilance advice]
+
+  - doc_id: ncdc-csm
+    title: Cerebrospinal Meningitis (CSM) Case Management Guide
+    publisher: Nigeria Centre for Disease Control and Prevention (NCDC)
+    url: https://ncdc.gov.ng/themes/common/docs/protocols/84_1518009605.pdf
+    url_confirmed: true
+    edition: "2017 (per NCDC upload; confirm on the document)"
+    file: ncdc-csm.pdf
+    licence: unstated (government publication)
+    licence_note: Government publication; licence not stated. Retrieval and citation only; do not commit.
+    commit_text: false
+    used_for: [case definition, referral triggers, meningitis belt]
+
+  - doc_id: ncdc-csm-quickref
+    title: CSM Quick Reference Guide for Health Facility Teams
+    publisher: Nigeria Centre for Disease Control and Prevention (NCDC)
+    url: https://ncdc.gov.ng/themes/common/docs/protocols/85_1518009885.pdf
+    url_confirmed: true
+    edition: "2017 (per NCDC upload; confirm on the document)"
+    file: ncdc-csm-quickref.pdf
+    licence: unstated (government publication)
+    licence_note: Government publication; licence not stated. Retrieval and citation only; do not commit.
+    commit_text: false
+    used_for: [facility-level CSM actions]
 
   - doc_id: ncdc-cholera
-    title: NCDC Cholera Guidelines (surveillance and case management)
+    title: Guidelines for Acute Watery Diarrhoea (Cholera) Outbreak
     publisher: Nigeria Centre for Disease Control and Prevention (NCDC)
-    url: https://ncdc.gov.ng/diseases/guidelines  # TODO: direct PDF link
-    url_confirmed: false
-    edition: "TODO: confirm edition/year"
+    url: https://ncdc.gov.ng/themes/common/docs/protocols/45_1507196550.pdf
+    url_confirmed: true
+    edition: "2017 (per NCDC upload; confirm on the document)"
     file: ncdc-cholera.pdf
-    licence_note: >-
-      TODO: unknown. Check NCDC terms / the document before committing any text.
+    licence: unstated (government publication)
+    licence_note: Government publication; licence not stated. Retrieval and citation only; do not commit.
     commit_text: false
     used_for: [case definition, dehydration assessment, referral triggers]
 
-  - doc_id: ncdc-csm
-    title: NCDC Cerebrospinal Meningitis (CSM) Guidelines
+  - doc_id: ncdc-case-definitions
+    title: Standard Case Definitions of Priority Diseases
     publisher: Nigeria Centre for Disease Control and Prevention (NCDC)
-    url: https://ncdc.gov.ng/diseases/guidelines  # TODO: direct PDF link
-    url_confirmed: false
-    edition: "TODO: confirm edition/year"
-    file: ncdc-csm.pdf
-    licence_note: >-
-      TODO: unknown. Check NCDC terms / the document before committing any text.
+    url: https://ncdc.gov.ng/themes/common/docs/protocols/31_1503912332.pdf
+    url_confirmed: true
+    edition: "2017 (per NCDC upload; confirm on the document)"
+    file: ncdc-case-definitions.pdf
+    licence: unstated (government publication)
+    licence_note: Government publication; licence not stated. Retrieval and citation only; do not commit.
     commit_text: false
-    used_for: [case definition, referral triggers]
-
-  - doc_id: who-imci
-    title: WHO Integrated Management of Childhood Illness (IMCI) Chart Booklet
-    publisher: World Health Organization
-    url: https://www.who.int/publications  # TODO: direct link to the chart booklet
-    url_confirmed: false
-    edition: "TODO: confirm edition (e.g. 2014 chart booklet or later)"
-    file: who-imci.pdf
-    licence_note: >-
-      TODO: verify licence on the document (WHO: often CC BY-NC-SA 3.0 IGO).
-    commit_text: false
-    used_for: [paediatric general danger signs]
+    used_for: [suspected-case definitions for the differential and the Lassa rule]

@@ -26,6 +26,8 @@ Raw responses are saved in [tests/fixtures/nemotron_responses.json](../tests/fix
 | F5 | Catalogue | No Nemotron model advertises `json_mode` / `structured_outputs` | Medium |
 | F6 | Billing DX | New account without billing gets "You have exhausted your budget" | Low |
 | F7 | Catalogue | Ultra and Super report `per_request_limits` of `1e10` | Low |
+| F8 | Embeddings | Embedding latency is high and variable (0.4–7.3 s for one short query) | Medium: in the critical path |
+| F9 | Catalogue | No NVIDIA embedding or reranking model | Medium for NVIDIA-only builds |
 
 ---
 
@@ -171,6 +173,36 @@ so we can't rely on it.
 
 **Suggestion.** Publish the real limits, or `null` when there is no fixed limit.
 
+## F8. Embedding latency is high and variable
+
+**Observed.** `Qwen/Qwen3-Embedding-8B` via `POST /v1/embeddings`:
+
+| Call | Input | Latency |
+|---|---|---|
+| Retrieval query (CLI) | 69 tokens | 5.5 s |
+| Retrieval queries (3 demo cases, Docker) | ~70 tokens each | 1.1 s, 7.3 s, 0.4 s |
+| Ingest batches (32 chunks) | 10k–21k tokens | 3.3–13.3 s |
+
+**Impact.** Retrieval sits in the critical path of every triage request. In one demo run, the
+single query embedding was 31% of the case's end-to-end latency (7.3 s of 23.6 s), more
+than the fast-model steps combined. The variance makes latency hard to promise to users.
+
+**Workaround.** None yet. Options we're weighing: embed the query in parallel with the
+outbreak step, or cache query embeddings.
+
+**Suggestions.** Publish latency expectations for embedding models, and consider a
+low-latency tier for short queries.
+
+## F9. No NVIDIA embedding or reranking model in the catalogue
+
+**Observed.** `GET /v1/models?verbose=true` lists one embedding model
+(`Qwen/Qwen3-Embedding-8B`) and no rerankers. None are NVIDIA models.
+
+**Impact.** For a hackathon that asks for NVIDIA models, retrieval is the one step we can't
+run on NVIDIA. RAG agents normally need both an embedder and a reranker.
+
+**Suggestion.** Serve an NVIDIA retrieval embedding model and reranker alongside Nemotron.
+
 ---
 
 ## What worked well
@@ -202,6 +234,23 @@ reasoning (on) and the referral note (off).
 
 Reasoning was 76% of Super's completion tokens and 80% of the case's latency. Every reply
 finished with `finish_reason: "stop"` and was clean JSON on the first attempt (no retries).
+
+**2026-09-22, same case with the real guideline index** (905 chunks from 6 NCDC/WHO PDFs,
+Qwen3-Embedding-8B; live outbreak search off, static endemicity baseline on): Refer now,
+Lassa fever top of the differential citing NCDC Lassa guideline §1.1.2 (pp. 8–9). Reasoning
+step: 3,162 prompt / 2,451 completion tokens (1,821 reasoning), 11.5 s, $0.0032. Whole case
+7,495 tokens, 20.1 s, $0.0036. Building the index: 29 embedding calls, ~500k tokens, $0.0065.
+
+**2026-09-22, production Docker image, three demo cases** (Lightning + Super, streaming):
+
+| Case | First event (rule check) | Final result | Total | Cost |
+|---|---|---|---|---|
+| Child with danger signs | 1.5 s (Refer now shown) | 15.0 s | 14.8 s of steps | $0.0033 |
+| Adult, Lassa suspicion, Ondo | 0.7 s | 23.6 s | 23.5 s | $0.0039 |
+| Uncomplicated malaria | 0.7 s | 11.4 s | 11.3 s | $0.0031 |
+
+Super's reasoning step was 8.6–13.4 s of each case. Streaming the rule result first means the
+health worker sees a danger-sign referral within ~1.5 s instead of ~15 s.
 
 ## Still to evaluate
 

@@ -202,10 +202,37 @@ def detect_danger_signs(
 
 
 # --- Lassa suspicion --------------------------------------------------------
+#
+# NCDC National Guideline for Lassa Fever Case Management (2018), §1.1.2 Suspected case:
+#   fever for 3-21 days (measured >= 38 °C) with one or more of: vomiting, diarrhoea,
+#   sore throat, myalgia, generalised body weakness, abnormal bleeding, abdominal pain.
+#   Index of suspicion is raised by: (a) no response to standard antimalarial treatment and
+#   treatment for other common causes of fever within 48-72 h; (b) contact with a probable or
+#   confirmed case within 21 days; (c) travel to a high-risk/burden area; (d) contact with body
+#   fluids of a patient who died of a febrile illness suggestive of Lassa.
+# Anchor phrases below let rules_post cite the exact guideline chunk.
 
+LASSA_CASE_DEF_ANCHOR = ("ncdc-lassa", "fever for 3-21 days with a measured temperature")
+LASSA_TRIAGE_ANCHOR = ("ncdc-lassa", "Put patient in a holding area")
+
+_LASSA_SYMPTOMS: dict[str, str] = {
+    "vomiting": r"\bvomit\w*|\bthrow\w*\s+up",
+    "diarrhoea": r"\bdiarr?h(?:o)?ea\w*|\bstool\w*\s+(?:dey\s+)?(?:run|watery)|\brunning\s+stomach",
+    "sore throat": r"\bsore\s+throat|\bthroat\s+(?:pain|dey\s+pain)",
+    "myalgia": r"\bmyalgia|\bmuscle\s+(?:pain|ache)|\bbody\s+(?:pain|ache)",
+    "generalised weakness": r"\b(?:general\w*\s+)?(?:body\s+)?weak\w*",
+    "abnormal bleeding": r"\bbleed\w*|\bh(?:a)?emorrhag\w*",
+    "abdominal pain": r"\babdominal\s+pain|\bstomach\s+(?:pain|ache)|\bbelle\s+(?:pain|dey\s+pain)",
+}
+_LASSA_SYMPTOM_RES = {k: re.compile(v, re.IGNORECASE) for k, v in _LASSA_SYMPTOMS.items()}
+
+_TREATMENT_WORDS = (
+    r"(?:anti-?malari\w*|coartem|artemether\w*|lumefantrine|(?-i:ACTs?)|amatem|lonart|"
+    r"malaria\s+(?:drugs?|medicine|treatment|injection)|antibiotic\w*|amoxic\w*|amoxil|"
+    r"ampiclox|cipro\w*|augmentin|septrin|metronidazole|flagyl|drugs?|medicine|treatment)"
+)
 _NO_RESPONSE_RE = re.compile(
-    r"\b(?:anti-?malari\w*|coartem|artemether\w*|lumefantrine|(?-i:ACTs?)|amatem|lonart|"
-    r"malaria\s+(?:drugs?|medicine|treatment|injection))\b"
+    rf"\b{_TREATMENT_WORDS}\b"
     r"[^.;]{0,60}?"
     r"\b(?:no\s+(?:change|improvement|better|difference)|not\s+(?:improv\w*|better|respond\w*|"
     r"work\w*|help\w*)|no\s+(?:dey\s+)?(?:better|work|help)|never\s+better|still|persist\w*|"
@@ -215,13 +242,37 @@ _NO_RESPONSE_RE = re.compile(
 _NOT_RESPONDING_TO_DRUGS_RE = re.compile(
     rf"\b(?:not|no|never)\s+(?:dey\s+)?respond\w*\s+to\s+{_DRUG_CTX}", re.IGNORECASE
 )
+_LASSA_CONTACT_RE = re.compile(
+    r"\bcontact\s+with\s+(?:a\s+)?(?:known\s+|confirmed\s+|suspected\s+|probable\s+)?"
+    r"(?:lassa|case|patient\s+with\s+lassa)|\b(?:rat|rodent)s?\b.{0,40}\b(?:food|house|droppings?|urine)",
+    re.IGNORECASE,
+)
 
 
-def no_antimalarial_response(case: PatientCase) -> bool:
-    if case.antimalarial_no_response:
+def no_treatment_response(case: PatientCase) -> bool:
+    """Criterion (a): fever did not respond to antimalarials and/or antibiotics."""
+    if case.antimalarial_no_response or case.antibiotic_no_response:
         return True
     text = case.raw_text or ""
     return bool(_NO_RESPONSE_RE.search(text) or _NOT_RESPONDING_TO_DRUGS_RE.search(text))
+
+
+no_antimalarial_response = no_treatment_response  # backward-compatible name
+
+
+def lassa_case_definition(case: PatientCase) -> list[str]:
+    """Matched §1.1.2 symptoms if the fever criterion is met; [] otherwise.
+
+    Fever: 3-21 days. A measured temperature below 38 °C excludes; an unmeasured one does not
+    (recall over precision; the result prompts measuring it).
+    """
+    days = case.fever_days
+    if days is None or not 3 <= days <= 21:
+        return []
+    if case.temperature_c is not None and case.temperature_c < 38.0:
+        return []
+    text = " ".join([case.raw_text or "", *case.symptoms])
+    return [name for name, rx in _LASSA_SYMPTOM_RES.items() if rx.search(text)]
 
 
 def _norm_state(state: str) -> str:
@@ -232,13 +283,14 @@ def _norm_state(state: str) -> str:
 def active_outbreak(
     signals: list[OutbreakSignal], state: str | None, disease: str
 ) -> OutbreakSignal | None:
-    """An active, sourced (URL + date) outbreak signal for `disease` in `state`."""
+    """An active, sourced (URL + date) LIVE outbreak signal for `disease` in `state`."""
     if not state:
         return None
     target = _norm_state(state)
     for sig in signals:
         if (
-            disease in sig.disease.lower()
+            sig.basis == "live"
+            and disease in sig.disease.lower()
             and _norm_state(sig.state) == target
             and sig.status == "active"
             and sig.url
@@ -248,25 +300,90 @@ def active_outbreak(
     return None
 
 
+def endemic_baseline(
+    signals: list[OutbreakSignal], state: str | None, disease: str
+) -> OutbreakSignal | None:
+    """A static baseline endemicity entry for `disease` in `state`."""
+    if not state:
+        return None
+    target = _norm_state(state)
+    for sig in signals:
+        if (
+            sig.basis == "baseline"
+            and disease in sig.disease.lower()
+            and _norm_state(sig.state) == target
+        ):
+            return sig
+    return None
+
+
+@dataclass
+class LassaFinding:
+    basis: str  # "live" (active outbreak signal) or "baseline" (endemic state)
+    signal: OutbreakSignal
+    floor: TriageLevel
+    criteria: list[str]  # human-readable reasons, for the differential and trace
+
+
+def lassa_assessment(
+    case: PatientCase, signals: list[OutbreakSignal], hits: list[DangerSignHit]
+) -> LassaFinding | None:
+    """Lassa suspicion from the NCDC 2018 case definition plus place.
+
+    live signal in the state:   definition met, OR fever >= 3 days with no treatment
+                                response, OR abnormal bleeding          -> Refer now
+    baseline endemic state only: definition met AND a raised index of suspicion
+                                (no treatment response, contact, or bleeding) -> Refer within 24h
+    """
+    symptoms = lassa_case_definition(case)
+    no_response = no_treatment_response(case)
+    bleeding = any(h.code == D.BLEEDING for h in hits)
+    contact = bool(_LASSA_CONTACT_RE.search(case.raw_text or ""))
+
+    criteria: list[str] = []
+    if symptoms:
+        criteria.append(
+            f"Meets NCDC suspected-case definition: fever {case.fever_days:g} days with "
+            + ", ".join(symptoms)
+        )
+    if no_response:
+        criteria.append("Fever not responding to antimalarial/antibiotic treatment")
+    if contact:
+        criteria.append("Possible contact with a Lassa case or rodents")
+    if bleeding:
+        criteria.append("Abnormal bleeding")
+
+    live = active_outbreak(signals, case.state, "lassa")
+    if live is not None:
+        prolonged_unresponsive = (case.fever_days or 0) >= 3 and no_response
+        if symptoms or prolonged_unresponsive or bleeding:
+            criteria.append(f"Active Lassa outbreak reported in {live.state} ({live.report_date})")
+            return LassaFinding("live", live, TriageLevel.REFER_NOW, criteria)
+        return None
+
+    base = endemic_baseline(signals, case.state, "lassa")
+    if base is not None and symptoms and (no_response or contact or bleeding):
+        season = " (peak season)" if base.in_season else ""
+        criteria.append(f"{base.state} is a Lassa-endemic state{season} (baseline, no live data)")
+        return LassaFinding("baseline", base, TriageLevel.REFER_24H, criteria)
+    return None
+
+
 def lassa_suspected(
     case: PatientCase, signals: list[OutbreakSignal], hits: list[DangerSignHit]
 ) -> OutbreakSignal | None:
-    """SPEC §5: in a state with an active Lassa signal, fever >= 3 days with no response to
-    antimalarials, or bleeding. Returns the triggering signal (for citation) or None."""
-    signal = active_outbreak(signals, case.state, "lassa")
-    if signal is None:
-        return None
-    bleeding = any(h.code == D.BLEEDING for h in hits)
-    prolonged_unresponsive = (case.fever_days or 0) >= 3 and no_antimalarial_response(case)
-    return signal if (bleeding or prolonged_unresponsive) else None
+    """Backward-compatible: the triggering signal if Lassa is suspected at any tier."""
+    finding = lassa_assessment(case, signals, hits)
+    return finding.signal if finding else None
 
 
 # --- floor ------------------------------------------------------------------
 
+# Wording follows NCDC 2018 §2.1.1 (triage of a suspected case).
 LASSA_IPC_REMINDER = (
-    "Suspected Lassa fever: isolate the patient, use gloves and standard IPC precautions, "
-    "avoid contact with body fluids, notify the LGA disease surveillance officer, "
-    "and refer urgently."
+    "Suspected Lassa fever: keep the patient in a separate holding area, use infection "
+    "prevention measures (gloves; avoid contact with blood and body fluids), notify the LGA "
+    "disease surveillance officer, and refer for Lassa testing."
 )
 
 
@@ -274,13 +391,17 @@ LASSA_IPC_REMINDER = (
 class RuleAssessment:
     floor: TriageLevel | None
     danger_signs: list[DangerSignHit] = field(default_factory=list)
-    lassa_signal: OutbreakSignal | None = None
+    lassa: LassaFinding | None = None
     reasons: list[str] = field(default_factory=list)
     reminders: list[str] = field(default_factory=list)
 
     @property
+    def lassa_signal(self) -> OutbreakSignal | None:
+        return self.lassa.signal if self.lassa else None
+
+    @property
     def lassa_suspected(self) -> bool:
-        return self.lassa_signal is not None
+        return self.lassa is not None
 
 
 def assess(
@@ -290,6 +411,7 @@ def assess(
 ) -> RuleAssessment:
     """Compute the rule-based triage floor.
 
+    `outbreak_signals` may mix live signals and baseline endemicity entries.
     `extra_hits` carries signs found by later steps (e.g. the reason model in rules_post);
     they can only add to the floor.
     """
@@ -300,16 +422,17 @@ def assess(
             hits.append(h)
             seen.add(h.code)
 
-    lassa = lassa_suspected(case, outbreak_signals or [], hits)
+    lassa = lassa_assessment(case, outbreak_signals or [], hits)
     reasons = [f"Danger sign: {DANGER_SIGN_LABELS[h.code]}" for h in hits]
     reminders: list[str] = []
     if lassa is not None:
-        reasons.append(f"Suspected Lassa fever with active outbreak in {lassa.state}")
+        tier = "active outbreak" if lassa.basis == "live" else "endemic state (baseline)"
+        reasons.append(f"Suspected Lassa fever ({tier}: {lassa.signal.state})")
         reminders.append(LASSA_IPC_REMINDER)
 
-    floor = TriageLevel.REFER_NOW if (hits or lassa) else None
+    floor = most_urgent(TriageLevel.REFER_NOW if hits else None, lassa.floor if lassa else None)
     return RuleAssessment(
-        floor=floor, danger_signs=hits, lassa_signal=lassa, reasons=reasons, reminders=reminders
+        floor=floor, danger_signs=hits, lassa=lassa, reasons=reasons, reminders=reminders
     )
 
 

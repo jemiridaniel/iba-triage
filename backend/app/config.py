@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -57,9 +57,25 @@ class Settings(BaseSettings):
     # Guideline index built by rag/ingest.py (or scripts/build_fake_index.py for dev).
     index_dir: Path = Path("data/index")
     retrieve_top_k: int = 6
+    # Instruction prepended to retrieval queries (Qwen3-Embedding style: documents are
+    # embedded as-is, queries as "Instruct: ...\nQuery: ..."). Empty to disable.
+    embed_query_instruction: str = (
+        "Given a health worker's description of a febrile patient, retrieve guideline "
+        "passages relevant to triage, referral and management"
+    )
     # Tavily. Without a key the outbreak step reports "outbreak data unavailable".
     # OUTBREAK_MOCK_FILE replays canned search results instead (tests, demos before credits).
     outbreak_mock_file: Path | None = None
+    # Static endemicity baseline, always combined with live signals.
+    endemicity_file: Path = Path("data/endemicity.yaml")
+    # Built PWA (frontend/dist); served by FastAPI when present.
+    frontend_dist: Path = Path("frontend/dist")
+
+    @field_validator("outbreak_mock_file", "cache_enabled", mode="before")
+    @classmethod
+    def _blank_is_none(cls, v: object) -> object:
+        # docker compose passes unset optional vars as empty strings
+        return None if v == "" else v
 
     @property
     def spend_file(self) -> Path:
