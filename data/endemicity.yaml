@@ -17,12 +17,13 @@ diseases:
     disease: Lassa fever
     verified: false
     states: [Ondo, Edo, Bauchi, Taraba, Ebonyi]
-    peak_months: [12, 1, 2, 3, 4]
+    peak_months: [11, 12, 1, 2, 3, 4]
     source: >-
-      TO CONFIRM: NCDC Lassa fever situation reports (states with the highest case burden).
-      Peak months per project spec (dry season, December-April); the NCDC 2018 guideline
-      foreword describes the large 2018 outbreak as January-May.
-    anchor: [ncdc-lassa, "travel to high risk/burden area of Lassa fever"]
+      States TO CONFIRM against NCDC Lassa fever situation reports (the advisory below says
+      "endemic and high-burden states" without naming them). Peak months SOURCED: NCDC/NMA
+      Joint Advisory to Doctors on Lassa Fever Vigilance (9 March 2026): "dry season from
+      November to April".
+    anchor: [ncdc-lassa-advisory-2026, "particularly in endemic and high-burden states"]
 
   csm:
     disease: Cerebrospinal meningitis

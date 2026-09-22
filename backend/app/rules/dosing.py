@@ -13,6 +13,7 @@ to True after a human check against the source.
 import re
 from dataclasses import dataclass
 
+from backend.app.rules.text import ascii_punct
 from backend.app.schemas import Citation, DoseRecommendation, PatientCase, TriageLevel
 
 TABLE_VERIFIED = False
@@ -100,4 +101,4 @@ _DOSE_RE = re.compile(
 
 def strip_doses(text: str) -> tuple[str, int]:
     """Replace dose amounts ("20/120 mg", "4 tablets", "10 mg/kg") with a placeholder."""
-    return _DOSE_RE.subn(DOSE_PLACEHOLDER, text)
+    return _DOSE_RE.subn(DOSE_PLACEHOLDER, ascii_punct(text))

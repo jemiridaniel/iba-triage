@@ -331,7 +331,8 @@ def test_compose_failure_uses_template(tmp_path: Path) -> None:
     )
     r = run_triage(TriageRequest(text=MALARIA_TEXT), deps)
     assert r.status == "complete"
-    assert r.referral_note.startswith("Triage: Treat & monitor")
+    assert r.referral_note.startswith("IBA TRIAGE NOTE")
+    assert "\nTriage: Treat & monitor" in r.referral_note
     assert any("template" in w for w in r.warnings)
 
 

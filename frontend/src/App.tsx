@@ -3,9 +3,16 @@ import { streamTriage } from "./api";
 import { About } from "./components/About";
 import { Questions } from "./components/Questions";
 import { ResultCard } from "./components/ResultCard";
-import { TraceDrawer } from "./components/TraceDrawer";
+import { CitationSheet, StepTimeline, TraceSheet } from "./components/Sheets";
 import { NIGERIAN_STATES, loadState, saveState } from "./states";
-import type { FollowUpAnswer, LiveRun, TriageRequest } from "./types";
+import type { Citation, FollowUpAnswer, LiveRun, TriageRequest } from "./types";
+
+// Tap to add common findings to the description (English and Pidgin).
+const QUICK_ADD = [
+  "RDT positive", "RDT negative", "fever 3 days", "vomit everything", "e dey convulse",
+  "e no fit drink", "sleep too much", "yellow eyes", "bleeding", "took coartem, no better",
+  "sore throat", "neck stiff", "watery stool",
+];
 
 const DEMOS = [
   {
@@ -26,10 +33,6 @@ const DEMOS = [
 ];
 
 const STEPS = ["intake", "rules_pre", "retrieve", "outbreak", "reason", "rules_post", "compose"];
-const STEP_LABEL: Record<string, string> = {
-  intake: "Reading case", rules_pre: "Danger-sign rules", retrieve: "Guidelines", outbreak: "Outbreaks",
-  reason: "Reasoning", rules_post: "Safety check", compose: "Referral note",
-};
 
 function usePath(): [string, (p: string) => void] {
   const [path, setPath] = useState(window.location.pathname);
@@ -60,6 +63,7 @@ export default function App() {
   const [run, setRun] = useState<LiveRun | null>(null);
   const [busy, setBusy] = useState(false);
   const [traceOpen, setTraceOpen] = useState(false);
+  const [citation, setCitation] = useState<Citation | null>(null);
   const abort = useRef<AbortController | null>(null);
 
   const pickRegion = (value: string) => {
@@ -118,9 +122,13 @@ export default function App() {
 
   const startCase = (text: string, state: string, demo = false) => {
     if (text.trim().length < 3) return;
+    if (demo) pickRegion(state); // keep the header in step with the case being shown
     setDraft("");
     submit({ text: text.trim(), state, demo });
   };
+
+  const quickAdd = (phrase: string) =>
+    setDraft((d) => (d.trim() ? `${d.trim().replace(/[,.]$/, "")}, ${phrase}` : phrase));
 
   const needsInfo = run?.final?.status === "needs_info";
 
@@ -147,7 +155,7 @@ export default function App() {
         </button>
       </header>
 
-      <main className="flex-1 space-y-3 px-3 pb-44 pt-3">
+      <main className="flex-1 space-y-3 px-3 pb-56 pt-3">
         {path === "/about" ? (
           <About />
         ) : (
@@ -183,15 +191,7 @@ export default function App() {
                   <p className="mt-1 text-xs opacity-80">{current.state || "No state selected"}{current.demo && " · demo"}</p>
                 </div>
 
-                {run && busy && !needsInfo && (
-                  <ol className="flex flex-wrap gap-1 text-xs" aria-label="Progress">
-                    {STEPS.map((s) => (
-                      <li key={s} className={`rounded-full px-2 py-1 ${run.done.includes(s) ? "bg-teal-700 text-white" : "bg-white text-slate-500"}`}>
-                        {run.done.includes(s) ? "✓ " : ""}{STEP_LABEL[s]}
-                      </li>
-                    ))}
-                  </ol>
-                )}
+                {run && busy && !needsInfo && <StepTimeline run={run} />}
 
                 {run?.error && (
                   <div className={`rounded-xl p-3 text-sm font-medium ${run.error.fatal ? "bg-red-100 text-red-900" : "bg-amber-100 text-amber-900"}`}>
@@ -210,7 +210,7 @@ export default function App() {
                 )}
 
                 {run && !needsInfo && (run.done.length > 0 || run.final) && !run.error?.fatal && (
-                  <ResultCard run={run} onOpenTrace={() => setTraceOpen(true)} />
+                  <ResultCard run={run} state={current.state} onOpenTrace={() => setTraceOpen(true)} onOpenCitation={setCitation} />
                 )}
 
                 {!busy && (
@@ -225,33 +225,44 @@ export default function App() {
         )}
       </main>
 
-      {path !== "/about" && (
-        <form
-          onSubmit={(e) => { e.preventDefault(); startCase(draft, region); }}
-          className="fixed inset-x-0 bottom-9 z-10 mx-auto flex max-w-xl gap-2 border-t border-slate-200 bg-white p-2"
-        >
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); startCase(draft, region); } }}
-            rows={2}
-            maxLength={4000}
-            placeholder="e.g. Pikin 3 years, hot body 4 days, vomit everything, RDT negative"
-            className="min-h-12 flex-1 resize-none rounded-lg border border-slate-300 px-3 py-2 text-[15px]"
-            aria-label="Describe the patient"
-          />
-          <button type="submit" disabled={busy || draft.trim().length < 3}
-                  className="min-h-12 rounded-lg bg-teal-800 px-4 font-bold text-white disabled:opacity-40">
-            {busy ? "…" : "Send"}
-          </button>
-        </form>
-      )}
+      <div className="fixed inset-x-0 bottom-0 z-10 mx-auto max-w-xl">
+        {path !== "/about" && (
+          <div className="border-t border-slate-200 bg-white">
+            {!busy && (
+              <div className="no-scrollbar flex gap-1.5 overflow-x-auto px-2 pt-2" aria-label="Quick add">
+                {QUICK_ADD.map((p) => (
+                  <button key={p} type="button" onClick={() => quickAdd(p)}
+                          className="min-h-9 shrink-0 rounded-full border border-teal-300 bg-white px-3 text-sm text-teal-900 active:scale-95 transition">
+                    + {p}
+                  </button>
+                ))}
+              </div>
+            )}
+            <form onSubmit={(e) => { e.preventDefault(); startCase(draft, region); }} className="flex gap-2 p-2">
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); startCase(draft, region); } }}
+                rows={2}
+                maxLength={4000}
+                placeholder="e.g. Pikin 3 years, hot body 4 days, vomit everything, RDT negative"
+                className="min-h-12 flex-1 resize-none rounded-lg border border-slate-300 px-3 py-2 text-[15px]"
+                aria-label="Describe the patient"
+              />
+              <button type="submit" disabled={busy || draft.trim().length < 3}
+                      className="min-h-12 rounded-lg bg-teal-800 px-4 font-bold text-white disabled:opacity-40">
+                {busy ? <span className="spinner inline-block" /> : "Send"}
+              </button>
+            </form>
+          </div>
+        )}
+        <footer className="bg-slate-900 px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 text-center text-xs font-semibold text-white">
+          Decision support only — a health worker decides.
+        </footer>
+      </div>
 
-      <footer className="fixed inset-x-0 bottom-0 z-10 mx-auto max-w-xl bg-slate-900 px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 text-center text-xs font-semibold text-white">
-        Decision support only — a health worker decides.
-      </footer>
-
-      <TraceDrawer steps={run?.trace ?? []} open={traceOpen} onClose={() => setTraceOpen(false)} />
+      <TraceSheet steps={run?.trace ?? []} open={traceOpen} onClose={() => setTraceOpen(false)} />
+      <CitationSheet citation={citation} onClose={() => setCitation(null)} />
     </div>
   );
 }

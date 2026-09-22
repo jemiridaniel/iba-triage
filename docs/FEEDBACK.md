@@ -148,6 +148,12 @@ on prompt instructions, Pydantic validation and one corrective retry. That works
 completed reply in our tests was clean JSON with no code fences), but every step pays for
 validation and occasional retries, and it's the main reliability risk for Nemotron agents.
 
+**Further evidence (2026-09-22).** In our eval's citation judge, Super with reasoning off
+returned invalid JSON **twice in a row** for a two-field schema
+(`{"verdict": ..., "reason": ...}`): the `reason` string was left unterminated, so the
+corrective retry failed too. It was 1 failure in 11 judge calls, but without JSON mode there
+is no way to make it impossible.
+
 **Suggestions.** Enable `response_format` (JSON mode, ideally JSON Schema) for Nemotron models,
 or document that it's accepted even though it isn't advertised.
 
@@ -181,6 +187,7 @@ so we can't rely on it.
 |---|---|---|
 | Retrieval query (CLI) | 69 tokens | 5.5 s |
 | Retrieval queries (3 demo cases, Docker) | ~70 tokens each | 1.1 s, 7.3 s, 0.4 s |
+| Retrieval query (phone test, Docker) | 45 tokens | 7.2 s (34% of a 21.1 s case) |
 | Ingest batches (32 chunks) | 10k–21k tokens | 3.3–13.3 s |
 
 **Impact.** Retrieval sits in the critical path of every triage request. In one demo run, the

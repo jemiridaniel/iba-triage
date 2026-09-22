@@ -12,6 +12,7 @@ exact indexed chunk for citation:
 
 import re
 
+from backend.app.rules.text import ascii_punct
 from backend.app.schemas import ActionItem, PatientCase
 
 Anchor = tuple[str, str]
@@ -71,6 +72,7 @@ TOPICS: dict[str, re.Pattern[str]] = {
 
 
 def topics(text: str) -> set[str]:
+    text = ascii_punct(text)
     return {name for name, rx in TOPICS.items() if rx.search(text)}
 
 

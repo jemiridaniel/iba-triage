@@ -65,6 +65,7 @@ export interface Citation {
   page_end?: number | null;
   url?: string | null;
   source_date?: string | null;
+  excerpt?: string | null;
 }
 
 export interface DoseRecommendation {
@@ -85,6 +86,7 @@ export interface TraceStep {
   completion_tokens: number;
   reasoning_tokens?: number | null;
   latency_ms: number;
+  model_latency_ms?: number | null;
   cost_usd?: number | null;
   cached: boolean;
   note?: string | null;

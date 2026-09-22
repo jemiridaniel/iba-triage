@@ -137,6 +137,7 @@ class Citation(BaseModel):
     page_end: int | None = None
     url: str | None = None
     source_date: date | None = None
+    excerpt: str | None = None  # short passage text, shown when a citation is tapped
 
 
 # --- pipeline outputs -------------------------------------------------------
@@ -199,7 +200,8 @@ class TraceStep(BaseModel):
     prompt_tokens: int = 0
     completion_tokens: int = 0
     reasoning_tokens: int | None = None
-    latency_ms: float = 0.0
+    latency_ms: float = 0.0  # wall clock in this run (tiny for cache hits)
+    model_latency_ms: float | None = None  # model time as originally measured, even if cached
     cost_usd: float | None = None
     cached: bool = False
     note: str | None = None

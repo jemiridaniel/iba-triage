@@ -100,6 +100,16 @@ The image (91 MB compressed) runs as a non-root user with a read-only filesystem
 `/health` check. Config comes from `.env` at runtime; the guideline index is mounted from
 `data/index/` rather than baked in (NCDC documents have no stated licence).
 
+### Guideline index and licensing
+
+The index is **not** in the repo or the public image. NCDC documents carry no stated licence,
+and WHO documents are CC BY-NC-SA 3.0 IGO (non-commercial, attribution). The repo ships
+everything needed to rebuild it: [data/sources.yaml](data/sources.yaml) (sources, editions,
+licence notes), `scripts/fetch_sources.py` (download) and `backend/app/rag/ingest.py`
+(chunk + embed, about $0.007). For deployment the index is baked into a **private** image in
+Nebius's container registry (or pulled from private object storage at startup), never
+published. Scanned PDFs are OCR'd with `ocrmypdf` before ingest.
+
 `POST /triage/stream` streams server-sent events after each pipeline step, so danger-sign
 referrals appear in about 1.5 s; `POST /triage` returns the whole result at once.
 
@@ -127,6 +137,22 @@ uv run python -m scripts.build_fake_index
 uv run python -m backend.app.cli "Adult man 35 years, fever 5 days, RDT negative, took coartem \
   for 3 days but no improvement" --state Ondo \
   --index data/index_fake --mock-outbreak data/mock/outbreak_ondo_lassa.json
+```
+
+### Evaluation
+
+60 synthetic vignettes ([eval/vignettes.jsonl](eval/vignettes.jsonl)) following SPEC §6, each
+with gold labels and a guideline rationale, **pending clinician review**
+([docs/CLINICAL_REVIEW.md](docs/CLINICAL_REVIEW.md)). `eval/run_eval.py` runs the routed,
+reason-only and fast-only configs (resumable, cached, confirms before spending over $0.50);
+`--outbreak off|mock` measures outbreak lift without Tavily. `eval/report.py` writes
+[eval/results/report.md](eval/results/report.md) and charts. Current results are a 10-case
+development check only.
+
+```bash
+uv run python -m eval.run_eval --config routed --limit 10 --stratified --judge
+uv run python -m eval.run_eval --config routed --category suspected_lassa --outbreak mock
+uv run python -m eval.report
 ```
 
 `uv run pytest -m live` runs opt-in tests against real APIs (spends credits).
