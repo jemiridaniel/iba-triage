@@ -99,6 +99,20 @@ class OutbreakSignal(BaseModel):
     url: str | None = None
 
 
+class GuidelineChunk(BaseModel):
+    """One retrievable passage of a guideline document, with what's needed to cite it."""
+
+    id: str  # "<doc_id>:<nnnn>", stable for a given document + chunker
+    doc_id: str
+    title: str
+    section: str | None  # heading the chunk starts under
+    sections: list[str] = []  # every heading the chunk spans
+    page: int  # 1-based
+    page_end: int
+    text: str
+    tokens: int  # approximate
+
+
 class Citation(BaseModel):
     kind: Literal["guideline", "outbreak"]
     doc_id: str | None = None

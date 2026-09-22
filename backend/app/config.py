@@ -38,7 +38,15 @@ class Settings(BaseSettings):
     cache_enabled: bool | None = None  # None -> on in dev, off in prod
     llm_timeout_s: float = 60.0
     llm_max_retries: int = 2
+    # Every live call sends a max_tokens so its worst-case cost is bounded.
+    llm_default_max_tokens: int = 2048
+    # Hard cap on cumulative live spend, tracked in CACHE_DIR/spend.json. Raise it deliberately.
+    max_spend_usd: float = 0.50
     log_level: str = "INFO"
+
+    @property
+    def spend_file(self) -> Path:
+        return self.cache_dir / "spend.json"
 
     @property
     def use_cache(self) -> bool:

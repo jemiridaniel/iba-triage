@@ -1,4 +1,5 @@
-"""Nebius Token Factory client: disk cache, structured JSON, token/latency/cost accounting.
+"""Nebius Token Factory client: disk cache, structured JSON, token/latency/cost accounting,
+and a hard spend cap.
 
 All LLM traffic goes through `LLMClient`. It never logs prompt or response text, only
 per-call metrics (step, model, tokens, latency, cost).
@@ -17,7 +18,7 @@ import json
 import logging
 import re
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import asdict, dataclass
@@ -29,6 +30,13 @@ from openai import OpenAI
 from pydantic import BaseModel, ValidationError
 
 from backend.app.config import ModelPrice, Settings, get_settings
+from backend.app.llm.spend import (
+    SpendLedger,
+    SpendLimitError,
+    estimate_prompt_tokens,
+    estimate_tokens,
+    worst_case_cost,
+)
 
 logger = logging.getLogger("iba.llm")
 
@@ -58,6 +66,7 @@ class ChatResult:
     content: str
     record: CallRecord
     cache_key: str
+    finish_reason: str | None = None
 
 
 # --- usage tracking ---------------------------------------------------------
@@ -150,10 +159,19 @@ def extract_json(text: str) -> str:
 
 
 class LLMClient:
-    def __init__(self, settings: Settings | None = None, client: OpenAI | None = None):
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        client: OpenAI | None = None,
+        *,
+        on_response: Callable[[Any], None] | None = None,
+    ):
+        """`on_response` receives each raw live SDK response (debugging/smoke tests only)."""
         self.settings = settings or get_settings()
         self._client = client
         self.cache = DiskCache(self.settings.cache_dir / "llm") if self.settings.use_cache else None
+        self.ledger = SpendLedger(self.settings.spend_file, self.settings.max_spend_usd)
+        self.on_response = on_response
 
     @property
     def client(self) -> OpenAI:
@@ -181,35 +199,42 @@ class LLMClient:
         max_tokens: int | None = None,
         json_mode: bool = False,
     ) -> ChatResult:
+        """`json_mode` sends response_format=json_object. Off by default: the Nemotron models
+        on Token Factory don't advertise json_mode, so we rely on prompt + validation."""
         _require_model(model, step)
-        params: dict[str, Any] = {"temperature": temperature}
-        if max_tokens is not None:
-            params["max_tokens"] = max_tokens
+        max_tokens = max_tokens or self.settings.llm_default_max_tokens
+        params: dict[str, Any] = {"temperature": temperature, "max_tokens": max_tokens}
         if json_mode:
             params["response_format"] = {"type": "json_object"}
         key = DiskCache.key({"kind": "chat", "model": model, "messages": messages, **params})
 
         if (hit := self._cache_get(key)) is not None:
             record = self._record(step, model, "chat", hit, cached=True)
-            return ChatResult(hit["content"], record, key)
+            return ChatResult(hit["content"], record, key, hit.get("finish_reason"))
 
+        self._guard(model, step, estimate_prompt_tokens(messages), max_tokens)
         start = time.perf_counter()
         try:
             resp = self.client.chat.completions.create(model=model, messages=messages, **params)
         except openai.OpenAIError as exc:
-            raise LLMError(f"{step}: Token Factory call failed ({type(exc).__name__})") from exc
+            raise LLMError(f"{step}: Token Factory call failed ({_describe(exc)})") from exc
         latency_ms = (time.perf_counter() - start) * 1000
+        if self.on_response is not None:
+            self.on_response(resp)
 
         usage = resp.usage
+        choice = resp.choices[0]
         entry = {
-            "content": resp.choices[0].message.content or "",
+            "content": choice.message.content or "",
+            "finish_reason": choice.finish_reason,
             "prompt_tokens": usage.prompt_tokens if usage else 0,
             "completion_tokens": usage.completion_tokens if usage else 0,
             "latency_ms": latency_ms,
         }
         self._cache_set(key, entry)
         record = self._record(step, model, "chat", entry, cached=False)
-        return ChatResult(entry["content"], record, key)
+        self._charge(record)
+        return ChatResult(entry["content"], record, key, entry["finish_reason"])
 
     def chat_json[T: BaseModel](
         self,
@@ -220,6 +245,7 @@ class LLMClient:
         step: str,
         temperature: float = 0.0,
         max_tokens: int | None = None,
+        json_mode: bool = False,
     ) -> tuple[T, list[CallRecord]]:
         """Call the model and validate its JSON against `schema`.
 
@@ -231,7 +257,7 @@ class LLMClient:
             "step": step,
             "temperature": temperature,
             "max_tokens": max_tokens,
-            "json_mode": True,
+            "json_mode": json_mode,
         }
         first = self.chat(messages, **kwargs)
         try:
@@ -239,7 +265,12 @@ class LLMClient:
         except ValidationError as exc:
             error = _short_error(exc)
 
-        logger.info("llm step=%s schema=%s parse failed, retrying once", step, schema.__name__)
+        logger.info(
+            "llm step=%s schema=%s parse failed (finish_reason=%s), retrying once",
+            step,
+            schema.__name__,
+            first.finish_reason,
+        )
         retry_messages = [
             *messages,
             {"role": "assistant", "content": first.content},
@@ -274,11 +305,12 @@ class LLMClient:
             self._record(step, model, "embed", hit, cached=True)
             return hit["vectors"]
 
+        self._guard(model, step, sum(estimate_tokens(t) for t in texts), 0)
         start = time.perf_counter()
         try:
             resp = self.client.embeddings.create(model=model, input=texts)
         except openai.OpenAIError as exc:
-            raise LLMError(f"{step}: Token Factory call failed ({type(exc).__name__})") from exc
+            raise LLMError(f"{step}: Token Factory call failed ({_describe(exc)})") from exc
         latency_ms = (time.perf_counter() - start) * 1000
 
         entry = {
@@ -288,7 +320,8 @@ class LLMClient:
             "latency_ms": latency_ms,
         }
         self._cache_set(key, entry)
-        self._record(step, model, "embed", entry, cached=False)
+        record = self._record(step, model, "embed", entry, cached=False)
+        self._charge(record)
         return entry["vectors"]
 
     # -- internals --
@@ -298,6 +331,20 @@ class LLMClient:
         if price is None:
             return None
         return (prompt_tokens * price.input + completion_tokens * price.output) / 1_000_000
+
+    def _guard(self, model: str, step: str, prompt_tokens: int, max_completion: int) -> None:
+        price = self.settings.model_prices.get(model)
+        if price is None:
+            raise SpendLimitError(
+                f"{step}: no price for {model} in MODEL_PRICES, so its cost can't be capped. "
+                "Run `uv run python -m scripts.list_models --write-prices` and copy the "
+                "MODEL_PRICES line into .env."
+            )
+        self.ledger.check(model, step, worst_case_cost(price, prompt_tokens, max_completion))
+
+    def _charge(self, record: CallRecord) -> None:
+        # _guard guarantees a price exists for every live call.
+        self.ledger.add(record.model, record.cost_usd or 0.0)
 
     def _cache_get(self, key: str) -> dict[str, Any] | None:
         return self.cache.get(key) if self.cache is not None else None
@@ -334,6 +381,11 @@ class LLMClient:
         if (records := _usage.get()) is not None:
             records.append(record)
         return record
+
+
+def _describe(exc: openai.OpenAIError) -> str:
+    status = getattr(exc, "status_code", None)
+    return f"{type(exc).__name__} {status}" if status else type(exc).__name__
 
 
 def _require_model(model: str, step: str) -> None:

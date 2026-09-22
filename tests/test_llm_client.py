@@ -17,6 +17,7 @@ from backend.app.llm.client import (
 )
 
 MODEL = "test/fast-model"
+OTHER = "test/other-model"
 
 
 class Answer(BaseModel):
@@ -33,7 +34,9 @@ class FakeCompletions:
         self.calls.append(kwargs)
         content = self.replies.pop(0)
         return SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content=content))],
+            choices=[
+                SimpleNamespace(message=SimpleNamespace(content=content), finish_reason="stop")
+            ],
             usage=SimpleNamespace(prompt_tokens=1000, completion_tokens=500),
         )
 
@@ -55,13 +58,21 @@ def make_client(tmp_path: Path, replies: list[str], *, cache: bool = True) -> LL
         _env_file=None,
         cache_dir=tmp_path,
         cache_enabled=cache,
-        model_prices={MODEL: {"input": 1.0, "output": 2.0}},
+        max_spend_usd=10.0,
+        model_prices={
+            MODEL: {"input": 1.0, "output": 2.0},
+            OTHER: {"input": 1.0, "output": 2.0},
+        },
     )
     fake = SimpleNamespace(
         chat=SimpleNamespace(completions=FakeCompletions(replies)),
         embeddings=FakeEmbeddings(),
     )
     return LLMClient(settings, client=fake)
+
+
+def cache_files(tmp_path: Path) -> list[Path]:
+    return list((tmp_path / "llm").rglob("*.json"))
 
 
 MSGS = [{"role": "user", "content": "hi"}]
@@ -71,6 +82,7 @@ def test_chat_records_tokens_and_cost(tmp_path: Path) -> None:
     client = make_client(tmp_path, ["hello"])
     result = client.chat(MSGS, model=MODEL, step="intake")
     assert result.content == "hello"
+    assert result.finish_reason == "stop"
     assert result.record.prompt_tokens == 1000
     assert result.record.completion_tokens == 500
     # 1000 * $1/M + 500 * $2/M
@@ -78,9 +90,13 @@ def test_chat_records_tokens_and_cost(tmp_path: Path) -> None:
     assert result.record.cached is False
 
 
-def test_cost_is_none_without_price(tmp_path: Path) -> None:
-    client = make_client(tmp_path, ["x"])
-    assert client.chat(MSGS, model="other/model", step="s").record.cost_usd is None
+def test_chat_always_sends_max_tokens(tmp_path: Path) -> None:
+    client = make_client(tmp_path, ["a", "b"])
+    client.chat(MSGS, model=MODEL, step="s")
+    client.chat(MSGS, model=MODEL, step="s", max_tokens=400)
+    calls = client.client.chat.completions.calls
+    assert calls[0]["max_tokens"] == client.settings.llm_default_max_tokens
+    assert calls[1]["max_tokens"] == 400
 
 
 def test_second_identical_call_hits_disk_cache(tmp_path: Path) -> None:
@@ -110,13 +126,13 @@ def test_cache_disabled(tmp_path: Path) -> None:
     client = make_client(tmp_path, ["a", "b"], cache=False)
     assert client.chat(MSGS, model=MODEL, step="s").content == "a"
     assert client.chat(MSGS, model=MODEL, step="s").content == "b"
-    assert not list(tmp_path.rglob("*.json"))
+    assert cache_files(tmp_path) == []
 
 
 def test_different_model_is_a_different_cache_key(tmp_path: Path) -> None:
     client = make_client(tmp_path, ["a", "b"])
     client.chat(MSGS, model=MODEL, step="s")
-    assert client.chat(MSGS, model="other/model", step="s").content == "b"
+    assert client.chat(MSGS, model=OTHER, step="s").content == "b"
 
 
 def test_empty_model_id_is_rejected(tmp_path: Path) -> None:
@@ -126,19 +142,30 @@ def test_empty_model_id_is_rejected(tmp_path: Path) -> None:
 
 
 def test_missing_api_key_raises(tmp_path: Path) -> None:
-    settings = Settings(_env_file=None, cache_dir=tmp_path, nebius_api_key=None)
+    settings = Settings(
+        _env_file=None,
+        cache_dir=tmp_path,
+        nebius_api_key=None,
+        model_prices={MODEL: {"input": 1.0, "output": 1.0}},
+    )
     with pytest.raises(LLMError, match="NEBIUS_API_KEY"):
         LLMClient(settings).chat(MSGS, model=MODEL, step="s")
 
 
-def test_chat_json_parses_and_requests_json_mode(tmp_path: Path) -> None:
+def test_chat_json_parses_without_json_mode_by_default(tmp_path: Path) -> None:
     client = make_client(tmp_path, ['{"level": "refer_now", "score": 3}'])
     answer, records = client.chat_json(MSGS, Answer, model=MODEL, step="reason")
     assert answer == Answer(level="refer_now", score=3)
     assert len(records) == 1
     call = client.client.chat.completions.calls[0]
-    assert call["response_format"] == {"type": "json_object"}
+    assert "response_format" not in call  # Nemotron on Token Factory doesn't list json_mode
     assert call["temperature"] == 0.0
+
+
+def test_chat_json_mode_is_opt_in(tmp_path: Path) -> None:
+    client = make_client(tmp_path, ['{"level": "x", "score": 1}'])
+    client.chat_json(MSGS, Answer, model=MODEL, step="reason", json_mode=True)
+    assert client.client.chat.completions.calls[0]["response_format"] == {"type": "json_object"}
 
 
 def test_chat_json_retries_once_with_error_feedback(tmp_path: Path) -> None:
@@ -155,7 +182,7 @@ def test_chat_json_raises_after_second_failure_and_evicts_cache(tmp_path: Path) 
     client = make_client(tmp_path, ["not json", "still not json"])
     with pytest.raises(LLMParseError):
         client.chat_json(MSGS, Answer, model=MODEL, step="reason")
-    assert not list(tmp_path.rglob("*.json"))
+    assert cache_files(tmp_path) == []
 
 
 def test_extract_json_handles_think_blocks_and_fences() -> None:
@@ -191,3 +218,12 @@ def test_embed_is_cached(tmp_path: Path) -> None:
     assert vectors == [[0.0, 1.0], [1.0, 1.0]]
     assert client.embed(["a", "b"], model=MODEL) == vectors
     assert client.client.embeddings.calls == 1
+
+
+def test_on_response_hook_sees_live_responses_only(tmp_path: Path) -> None:
+    seen = []
+    client = make_client(tmp_path, ["a"])
+    client.on_response = seen.append
+    client.chat(MSGS, model=MODEL, step="s")
+    client.chat(MSGS, model=MODEL, step="s")  # cache hit
+    assert len(seen) == 1

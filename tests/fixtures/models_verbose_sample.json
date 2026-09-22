@@ -1,0 +1,157 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "Qwen/Qwen3-Embedding-8B",
+      "object": "model",
+      "owned_by": "system",
+      "context_length": 40960,
+      "architecture": {
+        "modality": "text->embedding",
+        "tokenizer": "Other"
+      },
+      "pricing": {
+        "prompt": "0.00000001",
+        "completion": "0.0",
+        "image": "0",
+        "price_per_video_second": "0",
+        "request": "0",
+        "price_per_minute": "0"
+      },
+      "supported_features": null
+    },
+    {
+      "id": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+      "object": "model",
+      "owned_by": "system",
+      "context_length": 262144,
+      "architecture": {
+        "modality": "text->text",
+        "tokenizer": "Other"
+      },
+      "pricing": {
+        "prompt": "0.0000001",
+        "completion": "0.0000003",
+        "image": "0",
+        "price_per_video_second": "0",
+        "request": "0",
+        "price_per_minute": "0"
+      },
+      "supported_features": [
+        "tools",
+        "json_mode",
+        "structured_outputs"
+      ]
+    },
+    {
+      "id": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+      "object": "model",
+      "owned_by": "system",
+      "context_length": 262144,
+      "architecture": {
+        "modality": "text->text",
+        "tokenizer": "Other"
+      },
+      "pricing": {
+        "prompt": "0.00000006",
+        "completion": "0.00000024",
+        "image": "0",
+        "price_per_video_second": "0",
+        "request": "0",
+        "price_per_minute": "0"
+      },
+      "supported_features": [
+        "tools",
+        "reasoning"
+      ]
+    },
+    {
+      "id": "nvidia/Nemotron-3_5-Lightning",
+      "object": "model",
+      "owned_by": "system",
+      "context_length": 1048576,
+      "architecture": {
+        "modality": "text->text",
+        "tokenizer": "Other"
+      },
+      "pricing": {
+        "prompt": "0.00000006",
+        "completion": "0.00000024",
+        "image": "0",
+        "price_per_video_second": "0",
+        "request": "0",
+        "price_per_minute": "0"
+      },
+      "supported_features": [
+        "tools",
+        "reasoning"
+      ]
+    },
+    {
+      "id": "openbmb/MiniCPM-V-4_5",
+      "object": "model",
+      "owned_by": "system",
+      "context_length": 32000,
+      "architecture": {
+        "modality": "text+image->text",
+        "tokenizer": "Other"
+      },
+      "pricing": {
+        "prompt": "0.000000658",
+        "completion": "0.00000111",
+        "image": "0",
+        "price_per_video_second": "0",
+        "request": "0",
+        "price_per_minute": "0"
+      },
+      "supported_features": [
+        "json_mode",
+        "structured_outputs"
+      ]
+    },
+    {
+      "id": "nvidia/Nemotron-3-Ultra-550b-a55b",
+      "object": "model",
+      "owned_by": "system",
+      "context_length": 1048576,
+      "architecture": {
+        "modality": "text->text",
+        "tokenizer": "Other"
+      },
+      "pricing": {
+        "prompt": "0.000001",
+        "completion": "0.000003",
+        "image": "0",
+        "price_per_video_second": "0",
+        "request": "0",
+        "price_per_minute": "0"
+      },
+      "supported_features": [
+        "tools",
+        "reasoning"
+      ]
+    },
+    {
+      "id": "nvidia/nemotron-3-super-120b-a12b",
+      "object": "model",
+      "owned_by": "system",
+      "context_length": 262144,
+      "architecture": {
+        "modality": "text->text",
+        "tokenizer": "Other"
+      },
+      "pricing": {
+        "prompt": "0.0000003",
+        "completion": "0.0000009",
+        "image": "0",
+        "price_per_video_second": "0",
+        "request": "0",
+        "price_per_minute": "0"
+      },
+      "supported_features": [
+        "tools",
+        "reasoning"
+      ]
+    }
+  ]
+}
