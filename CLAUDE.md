@@ -1,6 +1,6 @@
-# CLAUDE.md — Iba: Fever-Triage Copilot
+# CLAUDE.md — Ibà: Fever-Triage Copilot
 
-> Working name "Iba" (Yoruba for fever). Rename freely.
+> Working name "Ibà" (Yoruba for fever). Rename freely.
 > Full design lives in `docs/SPEC.md`. Read it before starting any non-trivial task.
 
 ## What this is

@@ -111,13 +111,21 @@ def test_launch_screen_handles_dark_mode_and_reduced_motion() -> None:
     assert 200 <= int(fade.group(1)) <= 300
 
 
-def test_launch_screen_has_a_safety_timeout_and_no_minimum_duration() -> None:
-    assert "__ibaLaunchTimer" in INDEX
-    assert re.search(r"setTimeout\(function \(\) \{[^}]+\}, 4000\)", INDEX, re.DOTALL)
+def test_launch_screen_timing_and_safety_net() -> None:
+    launch = (REPO / "frontend" / "src" / "launch.ts").read_text(encoding="utf-8")
+    assert "export const LAUNCH_MIN_MS = 1200" in launch  # single tunable constant
+    assert "sessionStorage" in launch and "catch" in launch  # first-load-only, storage-safe
     main = (REPO / "frontend" / "src" / "main.tsx").read_text(encoding="utf-8")
     assert "dismissLaunchScreen()" in main
     assert "requestAnimationFrame" in main  # dismissed on mount, not on a timer
-    assert "setTimeout" not in main  # no artificial minimum
+    assert "setTimeout" not in main  # the hold lives in launch.ts, not the mount path
+
+
+def test_launch_screen_inline_script_handles_taps_and_the_hard_timeout() -> None:
+    assert "__ibaLaunchStart = Date.now()" in INDEX  # first paint, before the bundle
+    assert re.search(r'addEventListener\("click", function \(\) \{\s*el\.remove\(\);', INDEX)
+    assert "__ibaLaunchTimer" in INDEX
+    assert re.search(r"setTimeout\(function \(\) \{[^}]+\}, 4000\)", INDEX, re.DOTALL)
 
 
 # --- header select (iOS zoom guard) -------------------------------------------------

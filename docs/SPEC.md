@@ -1,4 +1,4 @@
-# Iba — Fever-Triage Copilot · Build Spec
+# Ibà — Fever-Triage Copilot · Build Spec
 
 Nebius x NVIDIA Global AI Hackathon.
 - Track: **Best Apps and Agents**, plus the **Best Use of Tavily** bonus.
@@ -18,7 +18,7 @@ Nebius x NVIDIA Global AI Hackathon.
 
 **The missing piece:** outbreak status changes weekly and by state (NCDC situation reports). The same presentation should be handled differently in an LGA with an active Lassa outbreak. No static guideline app knows that.
 
-**Our claim:** Iba combines three things at the point of care:
+**Our claim:** Ibà combines three things at the point of care:
 - national guideline-grounded reasoning,
 - deterministic safety rules,
 - live, state-specific outbreak intelligence.
@@ -34,7 +34,7 @@ The result is a triage and referral decision the worker can act on, with sources
 1. The worker opens the PWA and picks their **state/LGA** (remembered on the device).
 2. They describe the patient in free text or Pidgin, e.g.:
    > "Pikin 3 years, hot body 4 days, vomit everything, RDT negative, e don dey sleep too much"
-3. Iba asks up to **2 targeted follow-up questions** if critical fields are missing (age, duration, RDT result, danger signs).
+3. Ibà asks up to **2 targeted follow-up questions** if critical fields are missing (age, duration, RDT result, danger signs).
 4. The result card shows:
    - **Triage:** 🔴 Refer now / 🟠 Refer within 24h / 🟢 Treat & monitor
    - **Danger signs detected**, each flagged as rule-triggered or LLM-found
@@ -42,7 +42,7 @@ The result is a triage and referral decision the worker can act on, with sources
    - **Differential:** 2–4 conditions with reasons, and what to check next
    - **Actions:** a guideline-cited step list; doses come from the lookup table only
    - **Referral note:** one tap to copy or share (WhatsApp share intent)
-6. An expandable **"How Iba decided"** panel shows the models used per step, the sources, and the timing. It's good for judges, and good for trust.
+6. An expandable **"How Ibà decided"** panel shows the models used per step, the sources, and the timing. It's good for judges, and good for trust.
 
 ---
 
@@ -119,7 +119,7 @@ Record every source in `data/sources.yaml` with its URL, edition/date, and licen
   - A hit forces 🔴. The LLM cannot override it.
 - **Lassa suspicion rule.** Fever for ≥3 days + no response to antimalarials, or bleeding, in a state with an active outbreak signal → 🔴 plus an isolation/IPC reminder.
 - **No generated doses.** A regex plus a schema check strip any dose from LLM output. Doses come from the weight-band table only, with a citation.
-- **Fail safe.** Any parse or LLM error, or a timeout, gives **"Refer — Iba could not complete assessment"**. We never return a silent green.
+- **Fail safe.** Any parse or LLM error, or a timeout, gives **"Refer — Ibà could not complete assessment"**. We never return a silent green.
 - **Privacy.** No names are collected. Case text is not persisted in production. Only per-step metrics are logged.
 - **Visible disclaimer** in the UI and the referral note.
 
@@ -173,7 +173,7 @@ This produces the headline chart, e.g. "Routed matches Ultra-only on safety at X
 
 - A chat-style single screen with a state/LGA picker in the header.
 - Structured result card (§2), colour-coded, readable on a low-end Android phone.
-- "How Iba decided" drawer: per-step model, latency, sources.
+- "How Ibà decided" drawer: per-step model, latency, sources.
 - Share button → WhatsApp intent with the referral note.
 - An `/about` page covering the disclaimer, sources, and the models used.
 - Demo mode: three preloaded example cases, so judges can try it in one tap without typing.

@@ -44,7 +44,7 @@
         text-align: center;
         padding: 24px;
         opacity: 1;
-        transition: opacity 250ms ease-out;
+        transition: opacity 300ms ease-out;
       }
       #launch.iba-hide { opacity: 0; }
       #launch svg { width: 88px; height: 88px; }
@@ -80,11 +80,20 @@
       <div class="iba-dots" aria-hidden="true"><i></i><i></i><i></i></div>
     </div>
     <script>
-      // Safety net: never let the launch screen block the app, even if the bundle fails.
-      window.__ibaLaunchTimer = setTimeout(function () {
+      // Runs before the bundle: note first paint, allow tap-to-dismiss, and keep a hard
+      // safety timeout so the launch screen can never block the app.
+      window.__ibaLaunchStart = Date.now();
+      (function () {
         var el = document.getElementById("launch");
-        if (el) el.remove();
-      }, 4000);
+        if (el) {
+          el.addEventListener("click", function () {
+            el.remove();
+          });
+        }
+        window.__ibaLaunchTimer = setTimeout(function () {
+          if (el) el.remove();
+        }, 4000);
+      })();
     </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
