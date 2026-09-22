@@ -62,6 +62,11 @@ STEP_MODEL = {
 }
 
 
+def effective_gold(case: dict, live_signal: bool) -> dict:
+    """Gold labels for the mode the case ran in: `gold_live` overrides apply with a live signal."""
+    return {**case["gold"], **(case.get("gold_live", {}) if live_signal else {})}
+
+
 def load_vignettes(path: Path = VIGNETTES) -> list[dict[str, Any]]:
     return [
         json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
@@ -126,7 +131,9 @@ def estimate_cost(settings, config: str, n: int) -> float:
 _DROPPED = re.compile(r"dropped_citations=(\d+)")
 
 
-def summarise(case: dict, result: TriageResult, config: str, mode: str, wall_ms: float) -> dict:
+def summarise(
+    case: dict, result: TriageResult, config: str, mode: str, wall_ms: float, store=None
+) -> dict:
     steps = result.decision_trace.steps
     rules_post = next((s for s in steps if s.step == "rules_post"), None)
     dropped = (
@@ -140,24 +147,45 @@ def summarise(case: dict, result: TriageResult, config: str, mode: str, wall_ms:
     model_ms = sum(
         (s.model_latency_ms if s.cached and s.model_latency_ms else s.latency_ms) for s in steps
     )
+    # One claim per guideline-basis reason / model action, with its grounding status.
     claims = [
-        {"claim": f"{d.condition}: {'; '.join(d.reasons)}", "refs": d.citations}
+        {
+            "claim": f"{d.condition}: {r.text}",
+            "refs": [r.evidence.chunk_id] if r.evidence.chunk_id else [],
+            "status": r.evidence.status,
+        }
         for d in result.differential
-        if d.citations and d.source == "llm"
-    ] + [
-        {"claim": a.text, "refs": a.citations}
-        for a in result.actions
-        if a.citations and a.source == "llm"
+        if d.source == "llm"
+        for r in d.reasons
+        if r.evidence.status in ("verified", "unsupported")
     ]
+    # Model actions, including those merged into rule actions as details.
+    action_claims = [(a.text, a.evidence) for a in result.actions if a.source == "llm"]
+    action_claims += [
+        (d.text, d.evidence) for a in result.actions if a.source == "rule" for d in a.details
+    ]
+    claims += [
+        {
+            "claim": text,
+            "refs": [ev.chunk_id] if ev and ev.chunk_id else [],
+            "status": ev.status if ev else "unsupported",
+        }
+        for text, ev in action_claims
+    ]
+
+    def title(chunk_id: str) -> str:
+        chunk = store.get(chunk_id) if store else None
+        return f"{chunk_id} | {chunk.section} (p.{chunk.page})" if chunk else chunk_id
+
+    live = mode == "mock" or (mode == "case" and case.get("outbreak", "").startswith("mock_live"))
     return {
         "id": case["id"],
         "category": case["category"],
         "config": config,
         "outbreak_mode": mode,
-        "live_signal": mode == "mock"
-        or (mode == "case" and case.get("outbreak", "").startswith("mock_live")),
+        "live_signal": live,
         "ts": datetime.now(UTC).isoformat(timespec="seconds"),
-        "gold": case["gold"],
+        "gold": effective_gold(case, live),
         "status": result.status,
         "triage_level": result.triage_level.value if result.triage_level else None,
         "triage_rationale": result.triage_rationale,
@@ -167,6 +195,17 @@ def summarise(case: dict, result: TriageResult, config: str, mode: str, wall_ms:
         "citations_kept": kept,
         "citations_dropped": dropped,
         "claims": claims,
+        "grounding": result.grounding.model_dump(),
+        "retrieval": [
+            {
+                "condition": q.condition,
+                "purpose": q.purpose,
+                "query": q.query,
+                "top": [title(h) for h in q.hits[:5]],
+            }
+            for q in result.retrieval
+        ],
+        "passages": sorted({h for q in result.retrieval for h in q.hits}),
         "warnings": result.warnings,
         "latency_ms": round(model_ms, 1),
         "wall_ms": round(wall_ms, 1),
@@ -182,7 +221,7 @@ def run_case(deps: Deps, case: dict, config: EvalConfig, mode: str, template: Pa
     request = TriageRequest(text=case["text"], state=case.get("state"), skip_questions=True)
     start = time.perf_counter()
     result = run_triage(request, deps, config)
-    return summarise(case, result, config, mode, (time.perf_counter() - start) * 1000)
+    return summarise(case, result, config, mode, (time.perf_counter() - start) * 1000, deps.store)
 
 
 # --- LLM judge: does the cited chunk support the claim? --------------------------
@@ -200,6 +239,8 @@ Judge only against the passage text. Keep the reason to one sentence."""
 
 
 def judge_sample(records: list[dict], fraction: float = 0.2) -> list[dict]:
+    if fraction >= 1.0:
+        return [r for r in records if r.get("claims")]
     """Deterministic ~20% sample of cases (by id hash) that have claims."""
     with_claims = [r for r in records if r.get("claims")]
     ranked = sorted(with_claims, key=lambda r: hashlib.sha256(r["id"].encode()).hexdigest())
@@ -207,9 +248,17 @@ def judge_sample(records: list[dict], fraction: float = 0.2) -> list[dict]:
 
 
 def run_judge(
-    deps: Deps, records: list[dict], out: Path, max_pairs_per_case: int = 6
+    deps: Deps,
+    records: list[dict],
+    out: Path,
+    fraction: float = 0.2,
+    max_pairs_per_case: int | None = 6,
 ) -> list[dict]:
-    """Judge a ~20% sample; one failed judgement is recorded, never fatal."""
+    """Judge claim/chunk pairs on a sample of cases (all with fraction=1.0, uncapped).
+
+    One failed judgement is recorded as judge_error, never fatal. Claims with no chunk at all
+    (no evidence given) can't be judged against text; the report counts them separately.
+    """
     from pydantic import BaseModel
 
     from backend.app.llm.client import LLMError
@@ -219,9 +268,9 @@ def run_judge(
         reason: str = ""
 
     rows = []
-    for rec in judge_sample(records):
-        pairs = [(c["claim"], ref) for c in rec["claims"] for ref in c["refs"]]
-        for claim, ref in pairs[:max_pairs_per_case]:
+    for rec in judge_sample(records, fraction):
+        pairs = [(c["claim"], ref, c.get("status")) for c in rec["claims"] for ref in c["refs"]]
+        for claim, ref, status in pairs[:max_pairs_per_case]:
             chunk = deps.store.get(ref) if deps.store else None
             if chunk is None:  # outbreak URLs aren't judged against text
                 continue
@@ -229,7 +278,7 @@ def run_judge(
                 {"role": "system", "content": JUDGE_SYSTEM},
                 {
                     "role": "user",
-                    "content": f"CLAIM:\n{claim}\n\nPASSAGE [{ref}]:\n{chunk.text[:1800]}",
+                    "content": f"CLAIM:\n{claim}\n\nPASSAGE [{ref}]:\n{chunk.text[:3400]}",
                 },
             ]
             try:
@@ -250,6 +299,7 @@ def run_judge(
                 "outbreak_mode": rec["outbreak_mode"],
                 "claim": claim,
                 "ref": ref,
+                "grounding_status": status,
                 **result,
             }
             with out.open("a", encoding="utf-8") as f:
@@ -275,6 +325,9 @@ def main() -> int:
     parser.add_argument(
         "--judge-only", action="store_true", help="judge existing results; run no cases"
     )
+    parser.add_argument(
+        "--judge-fraction", type=float, default=0.2, help="share of cases to judge (1.0 = all)"
+    )
     parser.add_argument("--yes", action="store_true", help="don't ask before an expensive run")
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
@@ -287,7 +340,8 @@ def main() -> int:
         judge_out = out.with_suffix(".judge.jsonl")
         judge_out.unlink(missing_ok=True)  # re-judge from scratch (cached calls are free)
         ok = [r for r in existing if not r.get("error")]
-        judged = run_judge(build_deps(settings), ok, judge_out)
+        cap = None if args.judge_fraction >= 1.0 else 6
+        judged = run_judge(build_deps(settings), ok, judge_out, args.judge_fraction, cap)
         print(f"Judged {len(judged)} claim-citation pairs -> {judge_out}")
         return 0
     done = (
@@ -341,9 +395,9 @@ def main() -> int:
         )
 
     if args.judge and records:
-        judged = run_judge(
-            deps, [r for r in records if not r.get("error")], out.with_suffix(".judge.jsonl")
-        )
+        cap = None if args.judge_fraction >= 1.0 else 6
+        ok = [r for r in records if not r.get("error")]
+        judged = run_judge(deps, ok, out.with_suffix(".judge.jsonl"), args.judge_fraction, cap)
         print(f"Judged {len(judged)} claim-citation pairs -> {out.with_suffix('.judge.jsonl')}")
     return 0
 

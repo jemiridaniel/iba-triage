@@ -85,6 +85,7 @@ ADULT_INTAKE = {
     "antimalarial_no_response": True,
     "language": "en",
 }
+TYPHOID_QUOTE = "Look for other causes of fever such as typhoid, pneumonia, urinary infection"
 ADULT_REASON_NO_LASSA = {
     # Model ignores the outbreak entirely: the Lassa rule must add it anyway.
     "triage_level": "refer_24h",
@@ -93,11 +94,28 @@ ADULT_REASON_NO_LASSA = {
         {
             "condition": "Typhoid fever",
             "likelihood": "moderate",
-            "reasons": ["5 days fever"],
-            "citations": ["fake-malaria:0002", "fake-typhoid:0042"],
-        },  # 2nd is invented
+            "reasons": [
+                {"text": "Fever for 5 days", "basis": "patient"},
+                {
+                    "text": "RDT-negative fever needs another cause",
+                    "chunk_id": "fake-malaria:0002",
+                    "evidence_quote": TYPHOID_QUOTE,
+                },
+                {  # invented chunk
+                    "text": "Typhoid is common in adults",
+                    "chunk_id": "fake-typhoid:0042",
+                    "evidence_quote": TYPHOID_QUOTE,
+                },
+            ],
+        },
     ],
-    "actions": [{"text": "Refer for further tests", "citations": ["https://invented.example"]}],
+    "actions": [
+        {
+            "text": "Refer for further tests",
+            "chunk_id": "https://invented.example",
+            "evidence_quote": "anything at all",
+        },
+    ],
 }
 
 
@@ -129,14 +147,19 @@ def test_adult_in_lassa_outbreak_state_gets_lassa_and_isolation(tmp_path: Path) 
     }
     assert any("MOCK" in w for w in r.warnings)
 
-    # Citations: only resolvable ones survive.
-    assert r.differential[1].citations == ["fake-malaria:0002"]
+    # Grounding: only the quote-verified reason is cited; the rest are kept but unsupported.
+    typhoid = r.differential[1]
+    assert [x.evidence.status for x in typhoid.reasons] == ["patient", "verified", "unsupported"]
+    assert typhoid.citations == ["fake-malaria:0002"]
+    assert typhoid.reasons[1].evidence.quote == TYPHOID_QUOTE
     # The model's "Refer for further tests" is merged into the rule's Lassa action as detail;
     # its invented citation is still dropped.
     assert len(r.actions) == 1
-    assert r.actions[0].details == ["Refer for further tests"]
+    assert [d.text for d in r.actions[0].details] == ["Refer for further tests"]
+    assert r.actions[0].details[0].evidence.status == "unsupported"  # shown grey, not as sourced
     assert "https://invented.example" not in r.actions[0].citations
-    assert any("Dropped 2 citation" in w for w in r.warnings)
+    assert (r.grounding.claims, r.grounding.verified, r.grounding.unsupported) == (3, 1, 2)
+    assert any("no verified guideline source" in w for w in r.warnings)
     assert {c.ref for c in r.citations} == {LASSA_URL, "fake-malaria:0002"}
 
     # The reasoning prompt saw the outbreak signal and the retrieved Lassa passages.
@@ -360,8 +383,8 @@ def test_decision_trace_records_each_step(tmp_path: Path) -> None:
     assert list(steps) == [
         "intake",
         "rules_pre",
-        "retrieve",
         "outbreak",
+        "retrieve",
         "reason",
         "rules_post",
         "compose",
@@ -375,7 +398,7 @@ def test_decision_trace_records_each_step(tmp_path: Path) -> None:
     # 100 in * $1/M + 50 out * $2/M = $0.0002 per call, four LLM calls
     assert r.decision_trace.total_cost_usd == pytest.approx(0.0008)
     assert "2 dropped" in steps["outbreak"].note
-    assert "dropped_citations=2" in steps["rules_post"].note
+    assert "verified=1/3" in steps["rules_post"].note
 
 
 def test_eval_config_reason_only_routes_every_step_to_reason_model(tmp_path: Path) -> None:

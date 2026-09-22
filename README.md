@@ -39,6 +39,13 @@ fast      rules      index       fast model  reason    rules        mid
 - **Treat & monitor** always carries a review interval, "no antimalarials with a negative RDT",
   and what to test next, each cited to WHO guidance. Rule and model advice that say the same
   thing are merged (rule wording wins).
+- **Quote-verified grounding**: every guideline claim from the reasoning model carries a chunk
+  ID and a verbatim 8–40-word quote from that chunk; `rules_post` checks deterministically that
+  the quote is really there. Claims that fail are kept but shown in grey as "AI suggestion —
+  no guideline source". In the 10-case dev eval, 71% of claims were quote-verified and the rest
+  honestly marked; an LLM judge rated 94% of verified claims as supported.
+- **Retrieval** plans one query per suspected condition and purpose (classification,
+  treatment, referral, IPC) with a small prior toward the owning guideline, embedded in one call.
 - Every result carries a **decision trace**: model, reasoning on/off, tokens, latency and
   cost per step.
 

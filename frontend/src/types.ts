@@ -39,10 +39,22 @@ export interface OutbreakContext {
   baseline: OutbreakSignal[];
 }
 
+export interface Evidence {
+  status: "verified" | "unsupported" | "patient" | "rule";
+  chunk_id?: string | null;
+  quote?: string | null;
+  score?: number | null;
+}
+
+export interface Reason {
+  text: string;
+  evidence: Evidence;
+}
+
 export interface DifferentialItem {
   condition: string;
   likelihood: "high" | "moderate" | "low";
-  reasons: string[];
+  reasons: Reason[];
   check_next: string[];
   citations: string[];
   source: "llm" | "rule";
@@ -52,7 +64,8 @@ export interface ActionItem {
   text: string;
   citations: string[];
   source: "llm" | "rule";
-  details: string[];
+  details: Reason[];
+  evidence?: Evidence | null;
 }
 
 export interface Citation {

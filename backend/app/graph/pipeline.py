@@ -115,10 +115,11 @@ def build_graph(deps: Deps):
     graph.add_conditional_edges(
         "rules_pre",
         nodes.after_rules_pre,
-        {"needs_info": END, "retrieve": "retrieve", "rules_post": "rules_post"},
+        {"needs_info": END, "outbreak": "outbreak", "rules_post": "rules_post"},
     )
-    graph.add_edge("retrieve", "outbreak")
-    graph.add_edge("outbreak", "reason")
+    # Outbreak before retrieval: live/baseline context shapes the retrieval queries.
+    graph.add_edge("outbreak", "retrieve")
+    graph.add_edge("retrieve", "reason")
     graph.add_edge("reason", "rules_post")
     graph.add_edge("rules_post", "compose")
     graph.add_edge("compose", END)
@@ -171,7 +172,11 @@ def _event_payload(node: str, update: dict[str, Any]) -> dict[str, Any]:
             "danger_signs": [dump(h) for h in pre.danger_signs],
         }
     elif node == "retrieve":
-        payload |= {"passages": len(update.get("hits", [])), "note": update.get("retrieval_note")}
+        payload |= {
+            "passages": len(update.get("hits", [])),
+            "queries": [dump(q) for q in update.get("retrieval", [])],
+            "note": update.get("retrieval_note"),
+        }
     elif node == "outbreak":
         payload |= {"outbreak": dump(update["outbreak"])}
     elif node == "reason":
@@ -253,6 +258,8 @@ def to_result(state: TriageState) -> TriageResult:
         actions=post.actions,
         doses=post.doses,
         citations=post.citations,
+        grounding=post.grounding,
+        retrieval=state.retrieval,
         summary=state.compose.summary if state.compose else None,
         referral_note=state.compose.referral_note if state.compose else None,
         warnings=warnings,

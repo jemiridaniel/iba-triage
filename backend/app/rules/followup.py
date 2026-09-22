@@ -13,7 +13,7 @@ exact indexed chunk for citation:
 import re
 
 from backend.app.rules.text import ascii_punct
-from backend.app.schemas import ActionItem, PatientCase
+from backend.app.schemas import ActionItem, Evidence, PatientCase, Reason
 
 Anchor = tuple[str, str]
 
@@ -100,7 +100,9 @@ def merge_advice(actions: list[ActionItem]) -> tuple[list[ActionItem], int]:
             continue
         best = max(range(len(rules)), key=lambda i: len(found & rule_topics[i]))
         target = rules[best]
-        target.details.append(action.text)
+        target.details.append(
+            Reason(text=action.text, evidence=action.evidence or Evidence(status="unsupported"))
+        )
         target.citations = list(dict.fromkeys([*target.citations, *action.citations]))
         merged += 1
     return kept, merged

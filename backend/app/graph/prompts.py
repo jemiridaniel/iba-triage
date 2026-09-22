@@ -17,7 +17,9 @@ from backend.app.schemas import (
     PatientCase,
 )
 
-MAX_CHUNK_CHARS = 1200
+# Show whole chunks (median ~2,850 chars): truncating at 1,200 hid over half of each passage,
+# so the model cited chunks whose supporting text it never saw.
+MAX_CHUNK_CHARS = 3400
 
 # Critical fields and their follow-up questions (fixed wording, English / Nigerian Pidgin).
 FOLLOW_UPS: dict[str, dict[str, str]] = {
@@ -101,14 +103,24 @@ current outbreak signals (each with a URL), reply with ONE JSON object matching 
 Hard rules:
 1. NEVER write drug doses, strengths, amounts or frequencies (no mg, ml, tablet counts, \
 "twice daily"). Name the drug or treatment only; doses come from a separate verified table.
-2. Cite ONLY the guideline IDs and outbreak URLs given below, copied exactly. Never invent \
-a citation. Cite at least one source for each differential item and action where possible.
+2. EVIDENCE. Every action and every differential reason carries its evidence:
+   - A reason that restates the patient's own findings (age, days of fever, RDT result, \
+symptoms, state) has basis "patient" and no chunk_id or quote.
+   - Every other reason, and every action, has basis "guideline", a chunk_id copied exactly \
+from the excerpts below, and an evidence_quote: a VERBATIM span of 8 to 40 consecutive words \
+copied character-for-character from that excerpt, which directly supports the claim.
+   - If no excerpt supports a claim, set chunk_id and evidence_quote to null. Do not \
+paraphrase in a quote, do not stitch fragments together, never invent a chunk_id.
+   Example action: {"text": "Keep the patient in a separate holding area", "chunk_id": \
+"ncdc-lassa:0004", "evidence_quote": "Put patient in a holding area and institute infection \
+prevention measures"}
 3. If the rules found danger signs, triage_level must be "refer_now". You may raise the \
 triage level above the rule floor, never lower it.
 4. Weigh active outbreaks (live) and baseline endemicity in the patient's state. If a \
 disease that is active or endemic there fits the presentation, include it in the \
 differential and give its isolation/referral steps. Live signals weigh more than baseline.
-5. differential: 2-4 conditions, most likely first, each with reasons and what to check next.
+5. differential: 2-4 conditions, most likely first, each with reasons (patient findings and \
+guideline criteria, each a separate reason) and what to check next.
 6. actions: short, concrete steps the health worker can take now.
 7. triage_level: "refer_now" (emergency), "refer_24h" (needs facility review within a day), \
 or "treat_monitor" (manage at the PHC with review).
@@ -193,7 +205,11 @@ def compose_messages(case: PatientCase, post: PostOutput) -> list[dict[str, str]
         "danger_signs": [h.label for h in post.danger_signs],
         "lassa_suspected": post.lassa_suspected,
         "differential": [
-            {"condition": d.condition, "likelihood": d.likelihood, "reasons": d.reasons}
+            {
+                "condition": d.condition,
+                "likelihood": d.likelihood,
+                "reasons": [r.text for r in d.reasons],
+            }
             for d in post.differential
         ],
         "actions": [a.text for a in post.actions],

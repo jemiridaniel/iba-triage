@@ -231,7 +231,8 @@ def test_merge_folds_duplicates_into_rule_action() -> None:
         "Give paracetamol for fever",
         "Start ribavirin",
     ]
-    assert merged[0].details == ["Isolate the patient and wear gloves"]
+    assert [d.text for d in merged[0].details] == ["Isolate the patient and wear gloves"]
+    assert merged[0].details[0].evidence.status == "unsupported"  # no evidence given
     assert merged[0].citations == ["a", "b"]
 
 
@@ -332,7 +333,8 @@ def test_regression_live_signal_raises_likelihood(tmp_path: Path) -> None:
     assert r.triage_level == TriageLevel.REFER_NOW
     lassa = r.differential[0]
     assert lassa.condition == "Lassa fever" and lassa.likelihood == "high"  # baseline: moderate
-    assert any("Active Lassa outbreak" in c for c in lassa.reasons)
+    assert any("Active Lassa outbreak" in r.text for r in lassa.reasons)
+    assert all(r.evidence.status == "rule" for r in lassa.reasons)
 
 
 def test_green_rdt_negative_case_is_actionable(tmp_path: Path) -> None:
@@ -360,7 +362,7 @@ def test_green_rdt_negative_case_is_actionable(tmp_path: Path) -> None:
     assert REVIEW_TEXT in texts and NO_ANTIMALARIAL_TEXT in texts
     assert any("typhoid" in t for t in texts)
     review = next(a for a in r.actions if a.text == REVIEW_TEXT)
-    assert review.details == ["Come back for review if not better"]  # merged, rule wins
+    assert [d.text for d in review.details] == ["Come back for review if not better"]
 
 
 @pytest.mark.parametrize(
@@ -384,7 +386,7 @@ def test_unicode_hyphens_are_matched() -> None:
     rule = ActionItem(text="Review in 3 days if the fever persists.", source="rule")
     model = ActionItem(text="Schedule follow‑up visit in 3 days")
     merged, n = merge_advice([rule, model])
-    assert n == 1 and merged[0].details == ["Schedule follow‑up visit in 3 days"]
+    assert n == 1 and [d.text for d in merged[0].details] == ["Schedule follow‑up visit in 3 days"]
 
 
 def test_unicode_dash_doses_are_stripped() -> None:

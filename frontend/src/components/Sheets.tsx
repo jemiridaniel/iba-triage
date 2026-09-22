@@ -19,7 +19,7 @@ export function BottomSheet({ title, open, onClose, children }: { title: string;
   );
 }
 
-export function CitationSheet({ citation, onClose }: { citation: Citation | null; onClose: () => void }) {
+export function CitationSheet({ citation, quote, onClose }: { citation: Citation | null; quote?: string | null; onClose: () => void }) {
   return (
     <BottomSheet title={citation ? citationLabel(citation) : ""} open={Boolean(citation)} onClose={onClose}>
       {citation && (
@@ -30,10 +30,17 @@ export function CitationSheet({ citation, onClose }: { citation: Citation | null
                 {citation.title}
                 {citation.section && <> · <em>{citation.section}</em></>}
               </p>
-              {citation.excerpt && (
-                <blockquote className="border-l-4 border-teal-600 bg-teal-50 p-3 text-slate-800">{citation.excerpt}</blockquote>
+              {quote ? (
+                <>
+                  <p className="text-xs font-bold uppercase tracking-wide text-teal-800">✓ Quote verified in this passage</p>
+                  <blockquote className="border-l-4 border-teal-600 bg-teal-50 p-3 text-slate-800">“{quote}”</blockquote>
+                </>
+              ) : (
+                citation.excerpt && (
+                  <blockquote className="border-l-4 border-slate-300 bg-slate-50 p-3 text-slate-800">{citation.excerpt}</blockquote>
+                )
               )}
-              <p className="text-xs text-slate-500">Excerpt from the indexed guideline passage Iba retrieved. Check the full document for context.</p>
+              <p className="text-xs text-slate-500">From the indexed guideline passage Iba retrieved. Check the full document for context.</p>
             </>
           ) : (
             <>
@@ -124,7 +131,7 @@ export function TraceSheet({ steps, open, onClose }: { steps: TraceStep[]; open:
   );
 }
 
-const TIMELINE = ["intake", "rules_pre", "retrieve", "outbreak", "reason", "rules_post", "compose"];
+const TIMELINE = ["intake", "rules_pre", "outbreak", "retrieve", "reason", "rules_post", "compose"];
 const TIMELINE_LABEL: Record<string, string> = {
   intake: "Reading the case",
   rules_pre: "Checking danger signs",

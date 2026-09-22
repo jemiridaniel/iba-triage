@@ -77,3 +77,4 @@ cd frontend && pnpm dev
 - Every request logs: models used per step, tokens, latency, and estimated cost. These numbers feed the demo video and the README.
 - Tests must mock Token Factory and Tavily. There is one opt-in live smoke test: `pytest -m live`.
 - Keep the README current. The rules require that it explains how Nemotron and Token Factory are used, and gives setup and run steps.
+- Don't add features beyond the task; list ideas under "Suggestions" in your summary instead.

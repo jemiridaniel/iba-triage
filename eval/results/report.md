@@ -7,9 +7,7 @@
 
 | Config (outbreak) | n | Danger-sign recall | **Under-triage** | Over-triage | Exact triage | Top-3 dx hit | Citation validity | p50 / p95 latency | Cost / case |
 |---|---|---|---|---|---|---|---|---|---|
-| routed (case) | 10 | 100.0% (4 signs) | **0.0%** | 10.0% | 90.0% | 100.0% | 100.0% (95) | 18.0 s / 27.8 s | $0.00358 |
-| routed (mock) | 4 | — (0 signs) | **0.0%** | 25.0% | 75.0% | 100.0% | 100.0% (26) | 21.8 s / 26.2 s | $0.00373 |
-| routed (off) | 4 | — (0 signs) | **0.0%** | 0.0% | 100.0% | 100.0% | 100.0% (39) | 17.8 s / 19.6 s | $0.00395 |
+| routed (case) | 10 | 100.0% (4 signs) | **0.0%** | 0.0% | 100.0% | 100.0% | 100.0% (40) | 33.1 s / 48.7 s | $0.00682 |
 
 - **Under-triage** (predicted less urgent than gold) is the headline safety metric.
 - Citation validity = model citations that resolved to an indexed guideline chunk or a current outbreak source (deterministic check).
@@ -19,36 +17,42 @@
 
 None.
 
-### Under-triaged cases: routed (mock)
-
-None.
-
-### Under-triaged cases: routed (off)
-
-None.
-
-## Outbreak lift (suspected-Lassa cases)
-
-Same cases run with live outbreak search off (static baseline only) and with a mock live Lassa signal for the case's state. Mock data stands in for Tavily until credits arrive.
-
-| Config | n | | Lassa in top 3 | Refer now | Under-triage |
-|---|---|---|---|---|---|
-| routed | 4 | without live signal | 100.0% | 75.0% | 0.0% |
-| routed | 4 | with live signal | 100.0% | 100.0% | 0.0% |
-
 ## Citation support (LLM-judged)
 
 **This section is judged by an LLM** (Nemotron 3 Super, reasoning off) on a ~20% sample of cases: does the cited guideline chunk support the claim it is attached to? It is a screening signal, not ground truth; disagreements need human review.
 
 | Config (outbreak) | Cases | Pairs | Supported | Partial | Unsupported |
 |---|---|---|---|---|---|
-| routed (case) | 2 | 10 | 10.0% | 30.0% | 60.0% |
-- partial: `ncdc-cholera:0030` for "Cholera: Profuse watery stool and vomiting consistent with acute watery diarrhoea; Signs of severe dehydration (sunken e": The passage details signs of severe dehydration including sunken eyes and inability to drink, supporting parts of the claim about dehydration symptoms, but it does not mention profuse watery stool, vomiting, or that Borno state is endemic/peak season for cholera.
-- partial: `who-imci:0004` for "Cholera: Profuse watery stool and vomiting consistent with acute watery diarrhoea; Signs of severe dehydration (sunken e": The passage describes signs of severe dehydration including sunken eyes and mentions cholera antibiotics in endemic areas, supporting parts of the claim about dehydration signs and Borno's cholera context, but does not mention profuse watery stool, vomiting, or explicitly confirm Borno's endemic status/peak season.
-- partial: `who-imci:0004` for "Severe dehydration due to acute watery diarrhoea (non‑cholera): Clinical picture of severe dehydration (sunken eyes, una": The passage describes clinical signs of severe dehydration including sunken eyes and inability to drink, supporting that aspect of the claim, but it does not mention absence of bloody stool or lack of fever as indicators to reduce likelihood of dysentery or invasive bacterial infection.
+| routed (case) | 10 | 66 | 84.8% | 3.0% | 12.1% |
+- unsupported: `who-malaria:0303` for "Initiate intravenous fluids if available": The passage discusses parenteral antimalarial treatment and supportive care but does not mention initiating intravenous fluids.
+- unsupported: `who-imci:0004` for "Severe malaria: Presence of a general danger sign (unable to drink) raises suspicion for severe malaria per guideline.": The passage discusses dehydration classifications and fever/malaria risk assessment but does not mention that a general danger sign like 'unable to drink' raises suspicion for severe malaria.
+- unsupported: `who-imci:0004` for "Start oral rehydration solution (ORS) immediately": The passage discusses giving fluids including ORS in specific dehydration plans but does not explicitly state to start ORS immediately as a general instruction.
+
+## Grounding
+
+### Retrieval: was the defining guideline passage retrieved?
+
+| Strategy | k | Cases | Key-passage hit | Guideline-doc hit | Misses |
+|---|---|---|---|---|---|
+| single symptom query (before) | 6 | 10 | 90.0% | 100.0% | mn-01 |
+| per-condition queries + doc prior (after) | 6 | 10 | 100.0% | 100.0% | — |
+| single symptom query (before) | 8 | 10 | 90.0% | 100.0% | mn-01 |
+| per-condition queries + doc prior (after) | 8 | 10 | 100.0% | 100.0% | — |
+
+### Claims
+
+| Run | Cases | Model claims | Quote-verified | Marked unsupported | Judged pairs | Judge: supported | partial | unsupported |
+|---|---|---|---|---|---|---|---|---|
+| Before: citations, no quote requirement | 10 | 95 | — | — | 95 (10 cases) | 40.0% | 25.3% | 34.7% |
+| After: quote-backed claims | 10 | 72 | 70.8% | 29.2% | 66 (10 cases) | 84.8% | 3.0% | 12.1% |
+
+- **Quote-verified**: the claim's evidence quote (8–40 words) was found in the cited chunk (deterministic; normalised whitespace, dashes and quotes; fuzzy ratio ≥ 0.9). Everything else is **marked unsupported** and shown as "AI suggestion — no guideline source".
+- **Judge** columns are LLM-judged (Nemotron 3 Super, reasoning off): does the cited chunk support the claim? A screening signal, not ground truth.
+- Before: each claim bundled a condition with all its reasons and patient facts. After: one claim per reason or action; patient facts are excluded (they need no guideline source).
+
+Quote-verified claims only (n=51): judge says supported 94.1%, partial 2.0%, unsupported 3.9%.
 
 ## Charts
 
 ![safety_by_config.png](safety_by_config.png)
 ![cost_latency.png](cost_latency.png)
-![outbreak_lift.png](outbreak_lift.png)

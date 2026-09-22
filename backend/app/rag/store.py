@@ -62,14 +62,23 @@ class VectorStore:
         return None
 
     def search(
-        self, query: Iterable[float], k: int = 5, doc_ids: set[str] | None = None
+        self,
+        query: Iterable[float],
+        k: int = 5,
+        doc_ids: set[str] | None = None,
+        boost: dict[str, float] | None = None,
     ) -> list[SearchHit]:
+        """Cosine top-k. `boost` adds a small per-doc_id prior to the score."""
         if not self.chunks or k <= 0:
             return []
         q = _normalise(np.asarray(list(query), dtype=np.float32))
         if q.shape != (self.vectors.shape[1],):
             raise ValueError(f"query dim {q.shape} != index dim {self.vectors.shape[1]}")
         scores = self.vectors @ q
+        if boost:
+            scores = scores + np.array(
+                [boost.get(c.doc_id, 0.0) for c in self.chunks], dtype=np.float32
+            )
         if doc_ids is not None:
             mask = np.array([c.doc_id in doc_ids for c in self.chunks])
             scores = np.where(mask, scores, -np.inf)

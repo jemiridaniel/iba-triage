@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 RESULTS = Path("eval/results")
+BEFORE = RESULTS / "before"
 RANK = {"treat_monitor": 0, "refer_24h": 1, "refer_now": 2}
 LABEL = {
     "treat_monitor": "Treat & monitor",
@@ -251,8 +252,128 @@ def charts(groups: dict[tuple, dict], lift: dict | None, out: Path) -> list[str]
     return written
 
 
+def regold(rows: list[dict]) -> list[dict]:
+    """Score every row against the current vignette gold for the mode it ran in."""
+    from eval.run_eval import effective_gold, load_vignettes
+
+    cases = {c["id"]: c for c in load_vignettes()}
+    for r in rows:
+        if r["id"] in cases:
+            r["gold"] = effective_gold(cases[r["id"]], bool(r.get("live_signal")))
+    return rows
+
+
+def grounding_stats(rows: list[dict], judge_rows: list[dict]) -> dict[str, Any]:
+    ok = [r for r in rows if not r.get("error")]
+    has_det = any("grounding" in r for r in ok)
+    if has_det:
+        claims = sum(r["grounding"]["claims"] for r in ok)
+        verified = sum(r["grounding"]["verified"] for r in ok)
+        marked = sum(r["grounding"]["unsupported"] for r in ok)
+    else:  # before: one claim per cited ref, no deterministic check
+        claims = sum(len(c["refs"]) for r in ok for c in r.get("claims", []))
+        verified = marked = None
+    judged = [j for j in judge_rows if j["verdict"] != "judge_error"]
+    return {
+        "cases": len(ok),
+        "claims": claims,
+        "verified_pct": pct(verified, claims) if verified is not None else None,
+        "marked_pct": pct(marked, claims) if marked is not None else None,
+        "judged": len(judged),
+        "judge_cases": len({j["id"] for j in judge_rows}),
+        "supported": pct(sum(j["verdict"] == "supported" for j in judged), len(judged)),
+        "partial": pct(sum(j["verdict"] == "partial" for j in judged), len(judged)),
+        "unsupported": pct(sum(j["verdict"] == "unsupported" for j in judged), len(judged)),
+        "judge_errors": len(judge_rows) - len(judged),
+        "verified_judged": [j for j in judged if j.get("grounding_status") == "verified"],
+    }
+
+
+def retrieval_summary(results_dir: Path) -> list[tuple[str, int, dict]]:
+    out = []
+    for k in (6, 8):
+        for name in ("single", "multi"):
+            p = results_dir / f"retrieval_{name}_k{k}.jsonl"
+            if p.exists():
+                rows = load([p])
+                out.append(
+                    (
+                        name,
+                        k,
+                        {
+                            "n": len(rows),
+                            "key_hit": pct(sum(r["key_hit"] for r in rows), len(rows)),
+                            "doc_hit": pct(sum(r["doc_hit"] for r in rows), len(rows)),
+                            "misses": [r["id"] for r in rows if not r["key_hit"]],
+                        },
+                    )
+                )
+    return out
+
+
+def render_grounding(before: dict | None, after: dict | None, retrieval: list) -> list[str]:
+    lines = ["## Grounding", ""]
+    if retrieval:
+        lines += [
+            "### Retrieval: was the defining guideline passage retrieved?",
+            "",
+            "| Strategy | k | Cases | Key-passage hit | Guideline-doc hit | Misses |",
+            "|---|---|---|---|---|---|",
+        ]
+        for name, k, s in retrieval:
+            label = (
+                "single symptom query (before)"
+                if name == "single"
+                else "per-condition queries + doc prior (after)"
+            )
+            lines.append(
+                f"| {label} | {k} | {s['n']} | {fmt(s['key_hit'], '%')} | {fmt(s['doc_hit'], '%')} | {', '.join(s['misses']) or '—'} |"
+            )
+        lines.append("")
+    lines += [
+        "### Claims",
+        "",
+        "| Run | Cases | Model claims | Quote-verified | Marked unsupported | Judged pairs | Judge: supported | partial | unsupported |",
+        "|---|---|---|---|---|---|---|---|---|",
+    ]
+    for label, g in (
+        ("Before: citations, no quote requirement", before),
+        ("After: quote-backed claims", after),
+    ):
+        if g:
+            lines.append(
+                f"| {label} | {g['cases']} | {g['claims']} | {fmt(g['verified_pct'], '%')} | {fmt(g['marked_pct'], '%')} | "
+                f"{g['judged']} ({g['judge_cases']} cases) | {fmt(g['supported'], '%')} | {fmt(g['partial'], '%')} | {fmt(g['unsupported'], '%')} |"
+            )
+    lines += [
+        "",
+        "- **Quote-verified**: the claim's evidence quote (8–40 words) was found in the cited chunk "
+        "(deterministic; normalised whitespace, dashes and quotes; fuzzy ratio ≥ 0.9). Everything else is "
+        '**marked unsupported** and shown as "AI suggestion — no guideline source".',
+        "- **Judge** columns are LLM-judged (Nemotron 3 Super, reasoning off): does the cited chunk support "
+        "the claim? A screening signal, not ground truth.",
+        "- Before: each claim bundled a condition with all its reasons and patient facts. After: one claim "
+        "per reason or action; patient facts are excluded (they need no guideline source).",
+        "",
+    ]
+    if after and after["verified_judged"]:
+        v = after["verified_judged"]
+        lines.append(
+            f"Quote-verified claims only (n={len(v)}): judge says supported "
+            f"{pct(sum(j['verdict'] == 'supported' for j in v), len(v))}%, partial "
+            f"{pct(sum(j['verdict'] == 'partial' for j in v), len(v))}%, unsupported "
+            f"{pct(sum(j['verdict'] == 'unsupported' for j in v), len(v))}%."
+        )
+        lines.append("")
+    return lines
+
+
 def render(
-    groups: dict[tuple, dict], lift: dict | None, judge: dict | None, images: list[str]
+    groups: dict[tuple, dict],
+    lift: dict | None,
+    judge: dict | None,
+    images: list[str],
+    grounding: list[str] | None = None,
 ) -> str:
     lines = [
         "# Iba eval report",
@@ -337,6 +458,8 @@ def render(
                     f'- {e["verdict"]}: `{e["ref"]}` for "{e["claim"][:120]}": {e["reason"]}'
                 )
         lines.append("")
+    if grounding:
+        lines += grounding
     if images:
         lines += ["## Charts", ""] + [f"![{i}]({i})" for i in images] + [""]
     return "\n".join(lines)
@@ -349,9 +472,11 @@ def main() -> int:
     args = parser.parse_args()
 
     paths = args.runs or sorted(
-        p for p in RESULTS.glob("*.jsonl") if not p.name.endswith(".judge.jsonl")
+        p
+        for p in RESULTS.glob("*.jsonl")
+        if not p.name.endswith(".judge.jsonl") and not p.name.startswith("retrieval_")
     )
-    rows = load(paths)
+    rows = regold(load(paths))
     if not rows:
         print("No results found.")
         return 1
@@ -363,7 +488,19 @@ def main() -> int:
     judge = judge_summary([p.with_suffix(".judge.jsonl") for p in paths])
     args.out.mkdir(parents=True, exist_ok=True)
     images = charts(groups, lift, args.out)
-    report = render(groups, lift, judge, images)
+
+    def judge_rows(p: Path) -> list[dict]:
+        j = p.with_suffix(".judge.jsonl")
+        return load([j]) if j.exists() else []
+
+    before_case, after_case = BEFORE / "routed__case.jsonl", RESULTS / "routed__case.jsonl"
+    before = after = None
+    if before_case.exists():
+        before = grounding_stats(regold(load([before_case])), judge_rows(before_case))
+    if after_case.exists():
+        after = grounding_stats(regold(load([after_case])), judge_rows(after_case))
+    grounding = render_grounding(before, after, retrieval_summary(RESULTS))
+    report = render(groups, lift, judge, images, grounding)
     (args.out / "report.md").write_text(report, encoding="utf-8")
     print(report)
     return 0

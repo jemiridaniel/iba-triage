@@ -46,8 +46,8 @@ def test_stream_emits_event_per_node_then_final(client_for) -> None:
     assert [e for e, _ in events] == [
         "intake",
         "rules_pre",
-        "retrieve",
         "outbreak",
+        "retrieve",
         "reason",
         "rules_post",
         "compose",

@@ -27,6 +27,7 @@ from backend.app.graph.state import (
 )
 from backend.app.llm.client import LLMError
 from backend.app.llm.router import call_json
+from backend.app.rag.queries import plan_queries, retrieve as retrieve_plans, suspected_conditions
 from backend.app.rules.danger_signs import (
     LASSA_CASE_DEF_ANCHOR,
     LASSA_IPC_REMINDER,
@@ -37,13 +38,18 @@ from backend.app.rules.danger_signs import (
 )
 from backend.app.rules.dosing import doses_for, strip_doses
 from backend.app.rules.followup import merge_advice, treat_monitor_advice
+from backend.app.rules.grounding import verify_quote
 from backend.app.schemas import (
     TRIAGE_LABELS,
     ActionItem,
     Citation,
     DangerSignHit,
     DifferentialItem,
+    Evidence,
+    GroundingSummary,
     PatientCase,
+    Reason,
+    RetrievalQuery,
     TriageLevel,
 )
 
@@ -118,7 +124,7 @@ def after_rules_pre(state: TriageState) -> str:
         return "rules_post"
     if state.questions and state.pre is not None and state.pre.floor is None:
         return "needs_info"  # danger signs never wait for answers
-    return "retrieve"
+    return "outbreak"
 
 
 # --- retrieve ---------------------------------------------------------------
@@ -143,14 +149,29 @@ def build_query(case: PatientCase, pre: RuleSnapshot | None) -> str:
 
 
 def retrieve(state: TriageState, deps: Deps) -> dict[str, Any]:
+    """One query per suspected condition and purpose, with a doc prior (rag/queries.py).
+
+    Runs after the outbreak step so live/baseline Lassa context shapes the queries.
+    """
     if deps.store is None or deps.embed is None or len(deps.store) == 0:
         return {"retrieval_note": "Guideline index not available; no guideline excerpts used."}
-    query = build_query(case_with_text(state), state.pre)
+    case = case_with_text(state)
+    signals = state.outbreak.all_signals if state.outbreak else []
+    lassa_rule = assess(case, signals).lassa is not None
+    danger = bool(state.pre and state.pre.danger_signs)
+    conditions = suspected_conditions(case, danger, state.outbreak, lassa_rule)
+    plans = plan_queries(case, conditions)
     try:
-        hits = deps.store.search_text(query, deps.embed, k=deps.settings.retrieve_top_k)
+        hits, logs = retrieve_plans(
+            deps.store, deps.embed, plans, k_total=deps.settings.retrieve_top_k
+        )
     except LLMError as exc:
         return {"retrieval_note": f"Guideline retrieval failed ({type(exc).__name__})."}
-    return {"hits": hits}
+    return {
+        "hits": hits,
+        "retrieval": [RetrievalQuery(**vars(lg)) for lg in logs],
+        "_note": f"conditions={conditions}, queries={len(plans)}, passages={len(hits)}",
+    }
 
 
 # --- outbreak ---------------------------------------------------------------
@@ -212,14 +233,44 @@ def rules_post(state: TriageState, deps: Deps) -> dict[str, Any]:
                 f"Raised from {TRIAGE_LABELS[out.triage_level]} to {TRIAGE_LABELS[level]} by "
                 f"safety rules ({'; '.join(rules.reasons)}). {rationale}"
             )
-        differential = [DifferentialItem(**d.model_dump()) for d in out.differential]
-        actions = [ActionItem(**a.model_dump()) for a in out.actions]
+        differential = [
+            DifferentialItem(
+                condition=d.condition,
+                likelihood=d.likelihood,
+                check_next=d.check_next,
+                reasons=[
+                    Reason(
+                        text=r.text, evidence=_ground(r.basis, r.chunk_id, r.evidence_quote, deps)
+                    )
+                    for r in d.reasons
+                ],
+            )
+            for d in out.differential
+        ]
+        for d in differential:
+            d.citations = list(
+                dict.fromkeys(
+                    r.evidence.chunk_id
+                    for r in d.reasons
+                    if r.evidence.status == "verified" and r.evidence.chunk_id
+                )
+            )
+        actions = []
+        for a in out.actions:
+            ev = _ground("guideline", a.chunk_id, a.evidence_quote, deps)
+            cites = [ev.chunk_id] if ev.status == "verified" and ev.chunk_id else []
+            actions.append(ActionItem(text=a.text, citations=cites, evidence=ev))
 
     # 2. Rule-driven content the model cannot omit.
     if rules.danger_signs:
         labels = ", ".join(h.label for h in rules.danger_signs)
         actions.insert(
-            0, ActionItem(text=f"Refer now: danger signs present ({labels}).", source="rule")
+            0,
+            ActionItem(
+                text=f"Refer now: danger signs present ({labels}).",
+                source="rule",
+                evidence=Evidence(status="rule"),
+            ),
         )
     if rules.lassa is not None:
         finding = rules.lassa
@@ -232,7 +283,9 @@ def rules_post(state: TriageState, deps: Deps) -> dict[str, Any]:
                 DifferentialItem(
                     condition="Lassa fever",
                     likelihood="high" if finding.basis == "live" else "moderate",
-                    reasons=finding.criteria,
+                    reasons=[
+                        Reason(text=c, evidence=Evidence(status="rule")) for c in finding.criteria
+                    ],
                     check_next=[
                         "Measure temperature (no antipyretic in the last 24 h)",
                         "Notify the LGA disease surveillance officer for Lassa testing",
@@ -247,26 +300,41 @@ def rules_post(state: TriageState, deps: Deps) -> dict[str, Any]:
                 text=LASSA_IPC_REMINDER,
                 citations=[*_anchors(deps, [LASSA_TRIAGE_ANCHOR]), *place],
                 source="rule",
+                evidence=Evidence(status="rule"),
             ),
         )
     if level == TriageLevel.TREAT_MONITOR and status == "complete":
         for text, anchors in treat_monitor_advice(case):
-            actions.append(ActionItem(text=text, citations=_anchors(deps, anchors), source="rule"))
+            actions.append(
+                ActionItem(
+                    text=text,
+                    citations=_anchors(deps, anchors),
+                    source="rule",
+                    evidence=Evidence(status="rule"),
+                )
+            )
 
     # 3. Strip any dose text the model produced.
     stripped = [0]
     rationale = _strip(rationale, stripped)
     for d in differential:
-        d.reasons = [_strip(r, stripped) for r in d.reasons]
+        for r in d.reasons:
+            r.text = _strip(r.text, stripped)
+            if r.evidence.quote:  # verified before stripping; displayed without doses
+                r.evidence.quote, _ = strip_doses(r.evidence.quote)
         d.check_next = [_strip(c, stripped) for c in d.check_next]
     for a in actions:
         a.text = _strip(a.text, stripped)
+        if a.evidence and a.evidence.quote:
+            a.evidence.quote, _ = strip_doses(a.evidence.quote)
     if stripped[0]:
         warnings.append(
             f"Removed {stripped[0]} dose mention(s) from model output; use the dose table."
         )
 
-    # 3b. One piece of advice per topic: rule wording wins, model detail appended.
+    # 3b. Count grounding over every model claim, then merge advice that says the same thing
+    #     (rule wording wins; merged model detail keeps its own grounding status).
+    grounding = _grounding_summary(differential, actions)
     actions, merged = merge_advice(actions)
 
     # 4. Keep only citations that resolve to a stored chunk or a current outbreak signal.
@@ -313,8 +381,15 @@ def rules_post(state: TriageState, deps: Deps) -> dict[str, Any]:
     if state.retrieval_note:
         warnings.append(state.retrieval_note)
 
+    if grounding.unsupported:
+        warnings.append(
+            f"{grounding.unsupported} of {grounding.claims} AI suggestion(s) have no verified "
+            "guideline source; they are shown in grey."
+        )
+
     post = PostOutput(
         status=status,
+        grounding=grounding,
         triage_level=level,
         triage_rationale=rationale,
         danger_signs=rules.danger_signs,
@@ -329,11 +404,42 @@ def rules_post(state: TriageState, deps: Deps) -> dict[str, Any]:
     lassa = rules.lassa.basis if rules.lassa else None
     note = (
         f"floor={floor}, lassa={lassa}, merged_advice={merged}, "
+        f"verified={grounding.verified}/{grounding.claims}, "
         f"dropped_citations={dropped}, stripped_doses={stripped[0]}"
     )
     if dropped_refs:  # citation IDs/URLs only, never patient text
         note += f", dropped={dropped_refs[:5]}"
     return {"post": post, "_note": note}
+
+
+def _ground(basis: str, chunk_id: str | None, quote: str | None, deps: Deps) -> Evidence:
+    """Verify a model claim's evidence quote against the chunk it cites."""
+    if basis == "patient":
+        return Evidence(status="patient")
+    chunk = deps.store.get(_normalise_ref(chunk_id)) if (chunk_id and deps.store) else None
+    if chunk is None:
+        return Evidence(status="unsupported")
+    check = verify_quote(quote, chunk.text)
+    if not check.verified:  # keep the attempted chunk for diagnostics; no citation shown
+        return Evidence(status="unsupported", chunk_id=chunk.id, score=check.score)
+    return Evidence(
+        status="verified", chunk_id=chunk.id, quote=(quote or "").strip(), score=check.score
+    )
+
+
+def _grounding_summary(
+    differential: list[DifferentialItem], actions: list[ActionItem]
+) -> GroundingSummary:
+    evidence = [r.evidence for d in differential if d.source == "llm" for r in d.reasons]
+    evidence += [a.evidence for a in actions if a.source == "llm" and a.evidence]
+    verified = sum(e.status == "verified" for e in evidence)
+    unsupported = sum(e.status == "unsupported" for e in evidence)
+    return GroundingSummary(
+        claims=verified + unsupported,
+        verified=verified,
+        unsupported=unsupported,
+        patient_facts=sum(e.status == "patient" for e in evidence),
+    )
 
 
 def _excerpt(text: str, limit: int = 320) -> str:

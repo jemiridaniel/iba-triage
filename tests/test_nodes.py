@@ -75,11 +75,11 @@ def test_rules_pre_uses_worker_text_and_answers(tmp_path: Path) -> None:
 def test_after_rules_pre_routing() -> None:
     s = state_for("fever")
     s.pre = RuleSnapshot(floor=None)
-    assert nodes.after_rules_pre(s) == "retrieve"
+    assert nodes.after_rules_pre(s) == "outbreak"
     s.questions = [nodes.follow_up("age_years", "en")]
     assert nodes.after_rules_pre(s) == "needs_info"
     s.pre = RuleSnapshot(floor=TriageLevel.REFER_NOW)
-    assert nodes.after_rules_pre(s) == "retrieve"
+    assert nodes.after_rules_pre(s) == "outbreak"
     s.intake_error = "boom"
     assert nodes.after_rules_pre(s) == "rules_post"
 
@@ -116,7 +116,7 @@ def test_reason_prompt_forbids_doses_and_lists_sources() -> None:
     ctx = OutbreakContext(status="unavailable", source="none", message="x")
     system, user = reason_messages(PatientCase(age_years=3), RuleSnapshot(floor=None), [], ctx)
     assert "NEVER write drug doses" in system["content"]
-    assert "Cite ONLY" in system["content"]
+    assert "VERBATIM span of 8 to 40" in system["content"]
     assert "Live outbreak data unavailable" in user["content"]
     assert "raw_text" not in user["content"]
 

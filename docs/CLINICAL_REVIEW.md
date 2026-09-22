@@ -75,7 +75,9 @@ Code: [backend/app/rules/followup.py](../backend/app/rules/followup.py).
 [eval/vignettes.jsonl](../eval/vignettes.jsonl): 60 synthetic cases with gold labels and a
 guideline rationale each, all `clinician_reviewed: false`. Please review the gold
 `triage_level`, `danger_signs` and `top_differential` for each case; the full eval runs
-only after review.
+only after review. Where a live outbreak signal should change the expected triage, a case
+carries `gold_live` overrides (currently la-06: partial Lassa features → Refer within 24h on
+baseline data, Refer now with a live signal).
 
 ## Sign-off
 

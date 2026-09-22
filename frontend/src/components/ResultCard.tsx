@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type {
   ActionItem,
   Citation,
+  Evidence,
   DangerSignHit,
   DifferentialItem,
   DoseRecommendation,
@@ -36,7 +37,32 @@ export function citationLabel(c: Citation): string {
   return `${doc}${pages}`;
 }
 
-type OpenCitation = (c: Citation) => void;
+type OpenCitation = (c: Citation, quote?: string | null) => void;
+
+const AI_SUGGESTION = "AI suggestion — no guideline source";
+
+/** One claim with its grounding: verified -> chip showing the quote; unsupported -> grey. */
+function Claim({ text, evidence, index, onOpen }: { text: string; evidence?: Evidence | null; index: Map<string, Citation>; onOpen: OpenCitation }) {
+  if (evidence?.status === "unsupported") {
+    return (
+      <span className="text-slate-500">
+        {text} <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-500">{AI_SUGGESTION}</span>
+      </span>
+    );
+  }
+  const cite = evidence?.status === "verified" && evidence.chunk_id ? index.get(evidence.chunk_id) : undefined;
+  return (
+    <span>
+      {text}
+      {cite && (
+        <button type="button" onClick={() => onOpen(cite, evidence?.quote)}
+                className="ml-1.5 rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-700 ring-1 ring-slate-200 active:scale-95">
+          📖 {citationLabel(cite)}
+        </button>
+      )}
+    </span>
+  );
+}
 
 function Cites({ refs, index, onOpen }: { refs: string[]; index: Map<string, Citation>; onOpen: OpenCitation }) {
   const items = refs.map((r) => index.get(r)).filter((c): c is Citation => Boolean(c));
@@ -218,10 +244,14 @@ function DifferentialRow({ d, index, onOpen, open: initiallyOpen }: { d: Differe
       {open && (
         <div className="px-3 pb-2">
           {d.reasons.length > 0 && (
-            <ul className="ml-4 list-disc text-sm text-slate-700">{d.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
+            <ul className="ml-4 list-disc space-y-1 text-sm text-slate-700">
+              {d.reasons.map((r) => (
+                <li key={r.text}><Claim text={r.text} evidence={r.evidence} index={index} onOpen={onOpen} /></li>
+              ))}
+            </ul>
           )}
           {d.check_next.length > 0 && <p className="mt-1 text-sm text-slate-600"><strong>Check next:</strong> {d.check_next.join("; ")}</p>}
-          <Cites refs={d.citations} index={index} onOpen={onOpen} />
+          {d.source === "rule" && <Cites refs={d.citations} index={index} onOpen={onOpen} />}
         </div>
       )}
     </li>
@@ -238,9 +268,11 @@ function Actions({ items, index, onOpen }: { items: ActionItem[]; index: Map<str
   return (
     <ol className="space-y-2">
       {items.map((a, i) => {
+        const unsupported = a.evidence?.status === "unsupported";
         const style = isUrgentRule(a)
           ? "border-l-4 border-red-600 bg-red-50"
-          : a.source === "rule" ? "border-l-4 border-teal-600 bg-teal-50" : "bg-white ring-1 ring-slate-200";
+          : a.source === "rule" ? "border-l-4 border-teal-600 bg-teal-50"
+          : unsupported ? "bg-slate-50 ring-1 ring-slate-200" : "bg-white ring-1 ring-slate-200";
         return (
           <li key={i} className={`rounded-md p-2 ${style}`}>
             <label className="flex cursor-pointer gap-2">
@@ -248,13 +280,17 @@ function Actions({ items, index, onOpen }: { items: ActionItem[]; index: Map<str
                      className="mt-1 h-5 w-5 shrink-0 accent-teal-700" aria-label="Mark as done" />
               <span className={`text-[15px] leading-snug ${done.has(i) ? "text-slate-400 line-through" : ""}`}>
                 {a.source === "rule" && <span className="mr-1 rounded bg-white/70 px-1 text-[10px] font-bold uppercase tracking-wide text-slate-600 ring-1 ring-slate-300">Safety rule</span>}
-                {a.text}
+                {a.source === "rule" ? a.text : <Claim text={a.text} evidence={a.evidence} index={index} onOpen={onOpen} />}
               </span>
             </label>
             {a.details.length > 0 && (
-              <ul className="ml-11 mt-1 list-disc text-sm text-slate-600">{a.details.map((d) => <li key={d}>{d}</li>)}</ul>
+              <ul className="ml-11 mt-1 list-disc space-y-1 text-sm text-slate-600">
+                {a.details.map((d) => (
+                  <li key={d.text}><Claim text={d.text} evidence={d.evidence} index={index} onOpen={onOpen} /></li>
+                ))}
+              </ul>
             )}
-            <div className="ml-7"><Cites refs={a.citations} index={index} onOpen={onOpen} /></div>
+            {a.source === "rule" && <div className="ml-7"><Cites refs={a.citations} index={index} onOpen={onOpen} /></div>}
           </li>
         );
       })}

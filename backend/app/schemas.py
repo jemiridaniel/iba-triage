@@ -153,12 +153,32 @@ class FollowUpAnswer(BaseModel):
     answer: str
 
 
+class Evidence(BaseModel):
+    """How a claim is grounded.
+
+    verified:    the quote was found in the cited guideline chunk (deterministic check)
+    unsupported: no quote, or the quote was not found; shown as an AI suggestion
+    patient:     restates the worker's description; needs no guideline source
+    rule:        produced by a deterministic rule with a fixed citation
+    """
+
+    status: Literal["verified", "unsupported", "patient", "rule"]
+    chunk_id: str | None = None
+    quote: str | None = None  # verified quote as shown to the user (doses stripped)
+    score: float | None = None  # 1.0 exact, else fuzzy ratio
+
+
+class Reason(BaseModel):
+    text: str
+    evidence: Evidence
+
+
 class DifferentialItem(BaseModel):
     condition: str
     likelihood: Literal["high", "moderate", "low"]
-    reasons: list[str] = []
+    reasons: list[Reason] = []
     check_next: list[str] = []
-    citations: list[str] = []
+    citations: list[str] = []  # verified chunk IDs / rule citations / outbreak URLs
     source: Literal["llm", "rule"] = "llm"
 
 
@@ -166,7 +186,23 @@ class ActionItem(BaseModel):
     text: str
     citations: list[str] = []
     source: Literal["llm", "rule"] = "llm"
-    details: list[str] = []  # model advice merged into a rule action (rule wording wins)
+    # Model advice merged into a rule action (rule wording wins); each keeps its own grounding.
+    details: list[Reason] = []
+    evidence: Evidence | None = None
+
+
+class GroundingSummary(BaseModel):
+    claims: int = 0  # model claims that needed a guideline source
+    verified: int = 0
+    unsupported: int = 0
+    patient_facts: int = 0
+
+
+class RetrievalQuery(BaseModel):
+    condition: str
+    purpose: str
+    query: str
+    hits: list[str] = []
 
 
 class DoseRecommendation(BaseModel):
@@ -248,6 +284,8 @@ class TriageResult(BaseModel):
     actions: list[ActionItem] = []
     doses: list[DoseRecommendation] = []
     citations: list[Citation] = []
+    grounding: GroundingSummary = GroundingSummary()
+    retrieval: list[RetrievalQuery] = []
     summary: str | None = None
     referral_note: str | None = None
     warnings: list[str] = []

@@ -23,9 +23,11 @@ from backend.app.schemas import (
     DoseRecommendation,
     FollowUpAnswer,
     FollowUpQuestion,
+    GroundingSummary,
     OutbreakContext,
     OutbreakSignal,
     PatientCase,
+    RetrievalQuery,
     TraceStep,
     TriageLevel,
 )
@@ -49,12 +51,20 @@ class TriageRequest(BaseModel):
 _LIKELIHOOD = {"medium": "moderate", "possible": "moderate", "likely": "high", "unlikely": "low"}
 
 
+class ReasonDraft(BaseModel):
+    text: str
+    # "patient": restates the worker's description (no source needed);
+    # "guideline": clinical knowledge that must be backed by chunk_id + evidence_quote.
+    basis: Literal["patient", "guideline"] = "guideline"
+    chunk_id: str | None = None
+    evidence_quote: str | None = None
+
+
 class DifferentialDraft(BaseModel):
     condition: str
     likelihood: Literal["high", "moderate", "low"]
-    reasons: list[str] = []
+    reasons: list[ReasonDraft] = []
     check_next: list[str] = []
-    citations: list[str] = []
 
     @field_validator("likelihood", mode="before")
     @classmethod
@@ -62,10 +72,17 @@ class DifferentialDraft(BaseModel):
         v = str(v).strip().lower()
         return _LIKELIHOOD.get(v, v)
 
+    @field_validator("reasons", mode="before")
+    @classmethod
+    def _plain_strings_are_unsourced(cls, v: Any) -> Any:
+        # A bare string has no evidence: keep it, it will be marked unsupported.
+        return [{"text": r} if isinstance(r, str) else r for r in (v or [])]
+
 
 class ActionDraft(BaseModel):
     text: str
-    citations: list[str] = []
+    chunk_id: str | None = None
+    evidence_quote: str | None = None
 
 
 class ReasonOutput(BaseModel):
@@ -117,6 +134,7 @@ class PostOutput(BaseModel):
     actions: list[ActionItem] = []
     doses: list[DoseRecommendation] = []
     citations: list[Citation] = []
+    grounding: GroundingSummary = GroundingSummary()
     warnings: list[str] = []
 
 
@@ -128,6 +146,7 @@ class TriageState(BaseModel):
     questions: list[FollowUpQuestion] = []
     pre: RuleSnapshot | None = None
     hits: list[SearchHit] = []
+    retrieval: list[RetrievalQuery] = []
     retrieval_note: str | None = None  # set when retrieval is unavailable
     outbreak: OutbreakContext | None = None
     reason: ReasonOutput | None = None

@@ -148,3 +148,46 @@ def test_judge_sample_is_deterministic_20_percent() -> None:
 def test_vignette_file_is_valid_jsonl() -> None:
     for line in (REPO / "eval" / "vignettes.jsonl").read_text().splitlines():
         json.loads(line)
+
+
+def test_gold_depends_on_outbreak_mode() -> None:
+    from eval.run_eval import effective_gold
+
+    la06 = next(c for c in CASES if c["id"] == "la-06")
+    assert effective_gold(la06, live_signal=False)["triage_level"] == "refer_24h"
+    assert effective_gold(la06, live_signal=True)["triage_level"] == "refer_now"
+    um01 = next(c for c in CASES if c["id"] == "um-01")
+    assert effective_gold(um01, True) == um01["gold"]  # no override -> same gold
+
+
+def test_report_regolds_rows_by_mode() -> None:
+    from eval.report import regold
+
+    base = rec("la-06", "refer_24h", "refer_now", cat="suspected_lassa", mode="mock")
+    base["live_signal"] = True
+    (row,) = regold([base])
+    assert row["gold"]["triage_level"] == "refer_now"  # no longer counted as over-triage
+
+
+def test_grounding_stats_before_and_after() -> None:
+    from eval.report import grounding_stats
+
+    after = [
+        {
+            **rec("a", "refer_now", "refer_now"),
+            "grounding": {"claims": 4, "verified": 3, "unsupported": 1, "patient_facts": 2},
+        }
+    ]
+    judge = [
+        {"id": "a", "verdict": "supported", "grounding_status": "verified"},
+        {"id": "a", "verdict": "unsupported", "grounding_status": "unsupported"},
+        {"id": "a", "verdict": "judge_error", "grounding_status": "verified"},
+    ]
+    g = grounding_stats(after, judge)
+    assert (g["claims"], g["verified_pct"], g["marked_pct"]) == (4, 75.0, 25.0)
+    assert (g["judged"], g["supported"], g["judge_errors"]) == (2, 50.0, 1)
+    before = [
+        {**rec("b", "refer_now", "refer_now"), "claims": [{"claim": "x", "refs": ["r1", "r2"]}]}
+    ]
+    assert grounding_stats(before, [])["claims"] == 2
+    assert grounding_stats(before, [])["verified_pct"] is None

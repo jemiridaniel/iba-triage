@@ -32,7 +32,7 @@ const DEMOS = [
   },
 ];
 
-const STEPS = ["intake", "rules_pre", "retrieve", "outbreak", "reason", "rules_post", "compose"];
+const STEPS = ["intake", "rules_pre", "outbreak", "retrieve", "reason", "rules_post", "compose"];
 
 function usePath(): [string, (p: string) => void] {
   const [path, setPath] = useState(window.location.pathname);
@@ -63,7 +63,7 @@ export default function App() {
   const [run, setRun] = useState<LiveRun | null>(null);
   const [busy, setBusy] = useState(false);
   const [traceOpen, setTraceOpen] = useState(false);
-  const [citation, setCitation] = useState<Citation | null>(null);
+  const [citation, setCitation] = useState<{ cite: Citation; quote?: string | null } | null>(null);
   const abort = useRef<AbortController | null>(null);
 
   const pickRegion = (value: string) => {
@@ -210,7 +210,7 @@ export default function App() {
                 )}
 
                 {run && !needsInfo && (run.done.length > 0 || run.final) && !run.error?.fatal && (
-                  <ResultCard run={run} state={current.state} onOpenTrace={() => setTraceOpen(true)} onOpenCitation={setCitation} />
+                  <ResultCard run={run} state={current.state} onOpenTrace={() => setTraceOpen(true)} onOpenCitation={(cite, quote) => setCitation({ cite, quote })} />
                 )}
 
                 {!busy && (
@@ -262,7 +262,7 @@ export default function App() {
       </div>
 
       <TraceSheet steps={run?.trace ?? []} open={traceOpen} onClose={() => setTraceOpen(false)} />
-      <CitationSheet citation={citation} onClose={() => setCitation(null)} />
+      <CitationSheet citation={citation?.cite ?? null} quote={citation?.quote} onClose={() => setCitation(null)} />
     </div>
   );
 }
