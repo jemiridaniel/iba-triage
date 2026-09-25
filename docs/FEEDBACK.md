@@ -33,6 +33,7 @@ Raw responses are saved in [tests/fixtures/nemotron_responses.json](../tests/fix
 | F12 | Nemotron / API | Model rewrites a URL it was told to copy exactly (adds `www.`) | **High**: a citation is only as good as its URL |
 | T1 | Tavily | `published_date` empty on every result, so recency depends on the LLM reading dates out of page text | **High**: recency is a safety property here (worked around) |
 | T3 | Tavily | National sitreps yield signals for other states than the patient's | Low (rules filter by state; prompt and UI now group them) |
+| D1 | Onboarding | Hackathon tenants get AI Studio, not the general Nebius AI Cloud (Compute/IAM) needed for Serverless Endpoints | **High**: blocked the encouraged deploy path |
 
 ---
 
@@ -380,6 +381,60 @@ The fixed second query appears to be cached Tavily-side, which is why it drops f
 
 ---
 
+## D1. A hackathon tenant gets AI Studio, not Nebius AI Cloud — with no visible path between them
+
+**What happened.** The rules say submissions "must run on either Nebius Token Factory or
+Nebius AI Cloud" and "encourage" deploying with Serverless Endpoints. Our tenant (created via
+the DevPost activation code) only exposes **AI Studio**: Explore, Model catalog, Inference,
+Post-training, Data Lab, Sandboxes, API keys — no Administration/IAM section, no Compute, no
+Container Registry navigation anywhere in the console.
+
+The confusing part wasn't the absence — it was that everything *looked* like it should work.
+The account has an "Admin" role badge in both the organization's Teams & Access page and the
+AI Studio project's own Teams & Access page. But `nebius iam v2 project list --parent-id
+<tenant>` and `nebius iam v2 project create` both returned `PermissionDenied` regardless,
+because those AI-Studio-scoped "Admin" badges aren't the same thing as membership in the
+tenant's built-in `admins` IAM group, which is what the general resource-manager service (the
+one behind Compute, Container Registry, Serverless Endpoints) actually checks. Nothing in the
+console — no error, no banner, no disabled-nav tooltip — said "this tenant doesn't have that
+product" or "you need a different role for this."
+
+We spent real time on this: installing the CLI, running through `nebius profile create`'s
+interactive wizard (its `--parent-id`/`--tenant-id` prompts don't validate against what the
+account can actually access — it happily saves a `parent-id` the account has no rights to),
+checking Billing (a healthy $53.30 balance, no Compute line items), and hunting for a
+workspace switcher that doesn't exist in this console. The eventual, correct fix — join the
+Nebius Discord and ask — isn't discoverable from inside the product at all.
+
+**Impact.** For a project explicitly built around Nebius/NVIDIA, being unable to use the
+"encouraged" deployment path for reasons the console never explained cost hours that should
+have gone into the actual submission, and the eligibility rule's wording ("must run on Token
+Factory **or** AI Cloud") is the only reason this didn't become a hard blocker.
+
+**Suggestions.**
+- When an API call is rejected because the account's product tier doesn't include the
+  resource type at all (as opposed to a real permissions gap within a product the tenant
+  does have), say so: `PermissionDenied` and "you're not in the right group" are the same
+  message today, and only one of them is fixable by the account owner.
+  `nebius profile create` could check this too, rather than accepting a `parent-id`/
+  `tenant-id` the profile can't actually use.
+  - the console could show a one-line note ("upgrade to Nebius AI Cloud to unlock Compute")
+    instead of just omitting the nav items silently.
+- For hackathons specifically: either provision AI Cloud alongside AI Studio by default for
+  activation-code signups, or put a visible "Need Compute? Ask here" link somewhere in the
+  console or the DevPost resources page, since Discord is the actual answer but nothing
+  in-product points to it.
+
+**What we did instead.** We deployed the container to Render's free tier (`$0`, no card;
+see the README's Deploy section) and kept a private Hugging Face dataset for the guideline
+index in place of a Nebius Object Storage mount — the licence-driven "don't bake it into the
+image" design survives the swap unchanged. One more surprise along the way: Hugging Face
+**Spaces now require a paid PRO subscription for any Docker or Gradio Space**, even on the
+free `cpu-basic` hardware tier — only fully static sites are free there. Worth flagging since
+several older tutorials (and our own first instinct) assume otherwise.
+
+---
+
 ## What worked well
 
 - **OpenAI compatibility:** the stock `openai` SDK worked with only `base_url` changed,
@@ -466,10 +521,23 @@ and out-of-state signals were labelled as such, and la-05 (Lagos) stopped under-
 the prompt said plainly that the Lassa reports it could see were elsewhere in Nigeria. Demo
 cases: 9/9 again, 0 fallbacks, p50 28.9 s, $0.0683.
 
+**2026-09-25, deploy to Render** (free tier, Frankfurt; Nebius AI Cloud unreachable, see D1):
+
+| | Result |
+|---|---|
+| Cold start (suspend → `/health` 200) | **~42 s** |
+| Demo cases, 3 runs each, live | **9 / 9 pass**, 0 fallbacks, p50 32.6 s, max 50.9 s, $0.0689 |
+| Guideline index fetch at boot (private HF dataset, 17.8 MB) | ~1–2 s, once per cold start |
+| Outbreak cache warmed | Ondo, Lagos, Kano (via the demo cases), Edo (explicit) |
+
+The free instance has no persistent disk: `.cache/spend.json` and the outbreak cache reset on
+every cold start (restart or 15-minute-idle sleep), unlike a Nebius Compute VM's local disk.
+Fine for a demo; worth knowing before treating the spend guard as cumulative over days.
+
 ## Still to evaluate
 
 - Ultra: response shape, reasoning control, latency, cost.
-- Serverless Endpoints: cold start, image size limits, scale to zero (week 3).
+- Serverless Endpoints: cold start, image size limits, scale to zero — still open; see D1.
 - Serverless Jobs for the eval batch (week 4).
 - Whether 60 days is the right staleness threshold per disease (Lassa is seasonal; cholera is
   not), rather than one number for all of them.

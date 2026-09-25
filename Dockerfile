@@ -39,10 +39,16 @@ USER iba
 
 ENV PATH="/app/.venv/bin:$PATH" \
     APP_ENV=prod \
-    PORT=8000
+    PORT=8000 \
+    # iba has no home dir (--no-create-home): huggingface_hub defaults its cache to
+    # ~/.cache, which would be unwritable. Only touched when HF_INDEX_REPO is set (Render).
+    HF_HOME=/app/.cache/huggingface \
+    HF_HUB_DISABLE_XET=1
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/health' % os.environ.get('PORT','8000'), timeout=4)"
 
-CMD ["sh", "-c", "exec uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT} --proxy-headers --forwarded-allow-ips='*'"]
+# HF_INDEX_REPO is unset on Nebius Compute and local dev (data/index is bind-mounted there);
+# when it's set (Render, which has no private-volume mount), fetch the index before serving.
+CMD ["sh", "-c", "python -m backend.app.rag.fetch_remote_index && exec uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT} --proxy-headers --forwarded-allow-ips='*'"]

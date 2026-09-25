@@ -8,8 +8,9 @@ a referral note. **Decision support, not diagnosis: a clinician always decides.*
 Built for the Nebius x NVIDIA Global AI Hackathon. Full design: [docs/SPEC.md](docs/SPEC.md).
 
 > Status: week 5. Installable PWA with streaming results, served by FastAPI from one Docker
-> image; real guideline index (NCDC + WHO); **live Tavily outbreak search**. Pending: the NMEP
-> malaria guideline PDF, a verified dose table and a verified endemic-state list.
+> image; real guideline index (NCDC + WHO); **live Tavily outbreak search**; **deployed at
+> https://iba-triage.onrender.com**. Pending: the NMEP malaria guideline PDF, a verified dose
+> table and a verified endemic-state list.
 
 ## Pipeline
 
@@ -113,9 +114,13 @@ The index is **not** in the repo or the public image. NCDC documents carry no st
 and WHO documents are CC BY-NC-SA 3.0 IGO (non-commercial, attribution). The repo ships
 everything needed to rebuild it: [data/sources.yaml](data/sources.yaml) (sources, editions,
 licence notes), `scripts/fetch_sources.py` (download) and `backend/app/rag/ingest.py`
-(chunk + embed, about $0.007). For deployment the index is baked into a **private** image in
-Nebius's container registry (or pulled from private object storage at startup), never
-published. Scanned PDFs are OCR'd with `ocrmypdf` before ingest.
+(chunk + embed, about $0.007). Scanned PDFs are OCR'd with `ocrmypdf` before ingest.
+
+At deploy time the index is kept out of the image and fetched from **private** storage instead:
+a bind mount from a private volume on Nebius Compute (`docker-compose.yml`'s pattern), or —
+where that isn't available — a private dataset repo, downloaded once at container boot by
+`backend/app/rag/fetch_remote_index.py` (see **Deploy** below). Either way the guideline text
+is never published or baked into a distributed image.
 
 `POST /triage/stream` streams server-sent events after each pipeline step, so danger-sign
 referrals appear in about 1.5 s; `POST /triage` returns the whole result at once.
@@ -155,6 +160,70 @@ uv run python -m backend.app.cli "Adult man 35 years, fever 5 days, RDT negative
   for 3 days but no improvement" --state Ondo \
   --index data/index_fake --mock-outbreak data/mock/outbreak_ondo_lassa.json
 ```
+
+### Deploy
+
+**Live demo: https://iba-triage.onrender.com** (Render free tier, Frankfurt).
+
+The intended target is **Nebius AI Cloud Serverless Endpoints** (`docker-compose.yml`'s local
+setup mirrors that: the index bind-mounted read-only, secrets from `.env`, never baked in).
+That wasn't reachable during the hackathon: our tenant only had **AI Studio** (Token Factory)
+provisioned, not the general Nebius AI Cloud product (Compute, Container Registry, IAM) needed
+for Serverless Endpoints — see `docs/FEEDBACK.md` for the details. The hackathon rules only
+require using Nebius Token Factory or Nebius AI Cloud **for inference**, which this app does
+either way, so we deployed the container itself to Render instead, at $0/month.
+
+**Reproducing this deploy:**
+
+```bash
+# 1. Guideline index -> a private dataset repo (read-only token at boot; see fetch_remote_index.py)
+uvx --from huggingface_hub hf repos create <you>/iba-guideline-index --repo-type dataset --private
+uvx --from huggingface_hub hf upload <you>/iba-guideline-index data/index . --repo-type dataset
+
+# 2. Build for linux/amd64 (Render's arch) and push to GitHub Container Registry
+gh auth refresh -h github.com -s write:packages,read:packages   # one-time, adds the scope
+gh auth token | docker login ghcr.io -u <you> --password-stdin
+docker buildx build --platform linux/amd64 -t ghcr.io/<you>/iba-triage:latest --push .
+
+# 3. Render: a registry credential (GHCR is private) + the service itself, via API
+#    (dashboard works too: New -> Web Service -> Existing Image -> paste the GHCR path)
+curl -X POST https://api.render.com/v1/registrycredentials \
+  -H "Authorization: Bearer $RENDER_TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"ghcr","registry":"GITHUB","username":"<you>","authToken":"<gh token with read:packages>","ownerId":"<your Render owner id>"}'
+
+curl -X POST https://api.render.com/v1/services \
+  -H "Authorization: Bearer $RENDER_TOKEN" -H "Content-Type: application/json" \
+  -d '{
+    "type": "web_service", "name": "iba-triage", "ownerId": "<owner id>",
+    "image": {"ownerId": "<owner id>", "imagePath": "ghcr.io/<you>/iba-triage:latest",
+              "registryCredentialId": "<credential id from above>"},
+    "serviceDetails": {"runtime": "image", "env": "image", "plan": "free",
+                        "region": "frankfurt", "healthCheckPath": "/health"},
+    "envVars": [
+      {"key": "NEBIUS_API_KEY", "value": "..."}, {"key": "TAVILY_API_KEY", "value": "..."},
+      {"key": "MODEL_FAST", "value": "..."}, {"key": "MODEL_MID", "value": "..."},
+      {"key": "MODEL_REASON", "value": "..."}, {"key": "MODEL_EMBED", "value": "..."},
+      {"key": "MODEL_PRICES", "value": "..."}, {"key": "MAX_SPEND_USD", "value": "0.80"},
+      {"key": "APP_ENV", "value": "prod"},
+      {"key": "HF_INDEX_REPO", "value": "<you>/iba-guideline-index"},
+      {"key": "HF_TOKEN", "value": "<a READ-ONLY token>"}
+    ]
+  }'
+```
+
+Notes:
+- `HF_TOKEN` here only needs **read** access to the one dataset — it downloads the index at
+  boot and nothing else. Don't reuse a write token.
+- Render doesn't support mounting a private external volume (unlike Nebius Compute or Hugging
+  Face Spaces' `-v hf://datasets/...`), which is why the index is fetched at startup instead of
+  mounted; `fetch_remote_index.py` no-ops when `HF_INDEX_REPO` is unset, so local dev and a
+  future Nebius deploy are unaffected.
+- **Free-tier caveats:** the instance has no persistent disk, so `.cache/spend.json` and the
+  outbreak cache (`.cache/outbreak/`) reset on every restart, and it spins down after 15 minutes
+  idle (cold start ≈ 40 s on wake — hit `/health` a minute before a demo to warm it up).
+- We tried Hugging Face Spaces first: as of this hackathon, **Docker and Gradio Spaces require
+  a paid PRO subscription** even on the free `cpu-basic` hardware — only fully static sites are
+  free. Worth knowing if you're following an older tutorial that assumes otherwise.
 
 ### Evaluation
 

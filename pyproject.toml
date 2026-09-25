@@ -17,6 +17,9 @@ dependencies = [
     "pyyaml>=6.0",
     "httpx>=0.28.1",
     "pypdf>=6.19.0",
+    # Only used at container boot on hosts without private-volume mounting (Render); see
+    # backend/app/rag/fetch_remote_index.py. Local dev and Nebius Compute never invoke it.
+    "huggingface-hub>=0.34",
 ]
 
 [dependency-groups]
