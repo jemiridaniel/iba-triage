@@ -163,7 +163,9 @@ uv run python -m backend.app.cli "Adult man 35 years, fever 5 days, RDT negative
 
 ### Deploy
 
-**Live demo: https://iba-triage.onrender.com** (Render free tier, Frankfurt).
+**Live demo: https://iba-triage.onrender.com** (Render free tier, Frankfurt). **First load can
+take ~40 s** if the free instance has gone to sleep (15 minutes with no traffic) — hit `/health`
+a minute before a demo or a Devpost tester's first visit to warm it up.
 
 The intended target is **Nebius AI Cloud Serverless Endpoints** (`docker-compose.yml`'s local
 setup mirrors that: the index bind-mounted read-only, secrets from `.env`, never baked in).
@@ -224,6 +226,55 @@ Notes:
 - We tried Hugging Face Spaces first: as of this hackathon, **Docker and Gradio Spaces require
   a paid PRO subscription** even on the free `cpu-basic` hardware — only fully static sites are
   free. Worth knowing if you're following an older tutorial that assumes otherwise.
+
+#### Redeploying after a code change
+
+**Render deploys from a pre-built container image tagged `latest` in GHCR — it does not watch
+this GitHub repo.** Pushing a commit, or even clicking "Manual Deploy" in the Render dashboard,
+does nothing by itself: a manual deploy just re-pulls whatever `latest` already points to in the
+registry. The only way changes reach the live URL is rebuilding and pushing a new image, then
+explicitly triggering a deploy. Exact steps, in order:
+
+```bash
+# 1. Build for linux/amd64 (Render's arch) and push BOTH an explicit version tag and `latest`.
+#    Using the commit SHA as the version tag means the Render dashboard (Events tab, or the
+#    "image" field on a deploy) always shows exactly which commit is actually running.
+SHA=$(git rev-parse --short HEAD)
+docker buildx build --platform linux/amd64 \
+  -t ghcr.io/jemiridaniel/iba-triage:latest \
+  -t ghcr.io/jemiridaniel/iba-triage:$SHA \
+  --push .
+
+# 2. Trigger the deploy (the dashboard's "Manual Deploy" button does the same thing)
+curl -X POST https://api.render.com/v1/services/srv-dar4op0473hc739qte6g/deploys \
+  -H "Authorization: Bearer $RENDER_TOKEN" -H "Content-Type: application/json" \
+  -d '{"imageUrl":"ghcr.io/jemiridaniel/iba-triage:latest"}'
+
+# 3. Poll until it's live (or watch the Events tab in the dashboard instead)
+curl -s -H "Authorization: Bearer $RENDER_TOKEN" \
+  https://api.render.com/v1/services/srv-dar4op0473hc739qte6g/deploys/<deploy id from step 2> \
+  | grep -o '"status":"[a-z_]*"'
+
+# 4. Confirm it's the build you expect (matches the SHA from step 1) and spot-check behaviour
+curl -s https://iba-triage.onrender.com/health
+curl -s https://iba-triage.onrender.com/meta | grep -o '"dose_table_verified":[a-z]*'
+uv run python -m scripts.demo_check --url https://iba-triage.onrender.com --repeat 3
+```
+
+`RENDER_TOKEN` is a Render API key (Account Settings → API Keys); the GHCR push needs a GitHub
+token with `write:packages` (`gh auth refresh -h github.com -s write:packages,read:packages`
+once, then `gh auth token | docker login ghcr.io -u jemiridaniel --password-stdin`).
+
+**Should this move to deploying straight from the GitHub repo instead?** For the time that's
+left, no — the switch itself carries its own risk (disconnecting and reconnecting the service's
+source, or standing up a new one, right before submission) for a benefit that only pays off over
+many more deploys than are left in this project. If you do want it later: Render's GitHub-connected
+services need their GitHub App installed with access to this repo (an interactive OAuth screen —
+the reason this deploy used a registry image in the first place), a `Dockerfile`-based Web Service
+pointing at this repo instead of an image, and the same env vars re-entered since they're
+per-service, not portable between a from-image and a from-repo service. Once connected, a plain
+`git push` to `main` deploys automatically and steps 1-2 above disappear — worth doing after
+submission, not before.
 
 ### Evaluation
 
