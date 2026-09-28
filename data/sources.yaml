@@ -13,17 +13,22 @@
 
 sources:
   - doc_id: nmep-malaria
-    title: National Guidelines for the Diagnosis and Treatment of Malaria
+    title: National Guidelines for Diagnosis and Treatment of Malaria
     publisher: National Malaria Elimination Programme (NMEP), Federal Ministry of Health, Nigeria
-    url: https://nmcp.gov.ng/  # no direct PDF published; add data/raw/nmep-malaria.pdf manually
-    url_confirmed: false
-    edition: "4th edition (2020)"
+    url: https://nmcp.gov.ng/  # no direct PDF published; data/raw/nmep-malaria.pdf placed manually
+    url_confirmed: true
+    edition: "4th Edition, May 2020"
     file: nmep-malaria.pdf
     licence: unstated (government publication)
     licence_note: >-
-      Official PDF not posted on the NMEP site. Obtain via the NMEP e-Toolkit (Case
-      Management), info@nmep.gov.ng, or clinical contacts. Do not use third-party copies
-      (e.g. Scribd) as a cited source. Do not commit.
+      Obtained from a pharmacist (a clinical contact), as the official PDF is not posted on
+      the NMEP site — one of the channels this note already named. Verified against the
+      document itself: cover page reads "National Guidelines for Diagnosis and Treatment of
+      Malaria, 4th Edition, FEDERAL MINISTRY OF HEALTH, NATIONAL MALARIA ELIMINATION
+      PROGRAMME, ABUJA-NIGERIA, MAY 2020"; Foreword confirms Nigeria-specific drug policy
+      (banned chloroquine and oral artemisinin monotherapies, ACTs since 2005, Test-Treat-
+      Track). Not a third-party copy or a different country's guideline. Licence still
+      unstated (government publication): retrieval and citation only, do not commit.
     commit_text: false
     used_for: [uncomplicated and severe malaria criteria, treatment, weight-band dosing table]
 

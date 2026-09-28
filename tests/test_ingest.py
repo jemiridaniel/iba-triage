@@ -69,7 +69,7 @@ def test_repo_sources_yaml_register() -> None:
     for s in sources.values():
         assert s.edition and s.licence and s.licence_note
         assert s.commit_text is False
-        assert s.url_confirmed is (s.doc_id != "nmep-malaria")
+        assert s.url_confirmed is True  # every listed source has now been obtained and verified
         if s.doc_id.startswith("who-"):
             assert s.licence == "CC BY-NC-SA 3.0 IGO"
 
