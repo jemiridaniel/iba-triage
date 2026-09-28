@@ -6,6 +6,7 @@ import type {
   DangerSignHit,
   DifferentialItem,
   DoseRecommendation,
+  GuidelineNote,
   LiveRun,
   OutbreakContext,
   OutbreakSignal,
@@ -339,19 +340,45 @@ function Actions({ items, index, onOpen }: { items: ActionItem[]; index: Map<str
   );
 }
 
-function Doses({ doses, onOpen }: { doses: DoseRecommendation[]; onOpen: OpenCitation }) {
+function DoseCard({ d, onOpen }: { d: DoseRecommendation; onOpen: OpenCitation }) {
+  return (
+    <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-sm">
+      {!d.verified && (
+        <p className="mb-1 font-bold text-amber-900">⚠ UNVERIFIED dose table: check against the printed national guideline before use.</p>
+      )}
+      <p><strong>{d.drug}</strong> · {d.weight_band}</p>
+      <p>{d.regimen}</p>
+      <Cites refs={[d.citation.ref]} index={new Map([[d.citation.ref, d.citation]])} onOpen={onOpen} />
+    </div>
+  );
+}
+
+function Doses({ doses, notes, onOpen }: { doses: DoseRecommendation[]; notes: GuidelineNote[]; onOpen: OpenCitation }) {
+  const primary = doses.find((d) => d.is_default) ?? doses[0];
+  const alternatives = doses.filter((d) => d !== primary);
   return (
     <div className="space-y-2">
-      {doses.map((d) => (
-        <div key={d.drug} className="rounded-md border border-amber-300 bg-amber-50 p-2 text-sm">
-          {!d.verified && (
-            <p className="mb-1 font-bold text-amber-900">⚠ UNVERIFIED dose table: check against the printed national guideline before use.</p>
-          )}
-          <p><strong>{d.drug}</strong> · {d.weight_band}</p>
-          <p>{d.regimen}</p>
-          <Cites refs={[d.citation.ref]} index={new Map([[d.citation.ref, d.citation]])} onOpen={onOpen} />
+      {primary && <DoseCard d={primary} onOpen={onOpen} />}
+      {alternatives.length > 0 && (
+        <details className="text-sm">
+          <summary className="cursor-pointer font-semibold text-amber-900">
+            Alternative tablet strength{alternatives.length > 1 ? "s" : ""} ({alternatives.map((d) => d.strength).join(", ")})
+          </summary>
+          <div className="mt-2 space-y-2">
+            {alternatives.map((d) => <DoseCard key={d.drug} d={d} onOpen={onOpen} />)}
+          </div>
+        </details>
+      )}
+      {notes.length > 0 && (
+        <div className="space-y-1 text-xs text-slate-600">
+          {notes.map((n) => (
+            <p key={n.text}>
+              {n.text}{" "}
+              <Cites refs={[n.citation.ref]} index={new Map([[n.citation.ref, n.citation]])} onOpen={onOpen} />
+            </p>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
@@ -427,7 +454,7 @@ export function ResultCard({ run, state, onOpenTrace, onOpenCitation }: {
             </Section>
           )}
           <Section title="Actions" delay={80}><Actions items={post.actions} index={index} onOpen={onOpenCitation} /></Section>
-          {post.doses.length > 0 && <Section title="Dose (from table only)" delay={120}><Doses doses={post.doses} onOpen={onOpenCitation} /></Section>}
+          {post.doses.length > 0 && <Section title="Dose (from table only)" delay={120}><Doses doses={post.doses} notes={post.dosing_notes} onOpen={onOpenCitation} /></Section>}
         </>
       ) : (
         running && <Section title="Assessment"><Pending label="Reasoning over guidelines and outbreak data" /></Section>

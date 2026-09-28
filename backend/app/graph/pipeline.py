@@ -277,6 +277,7 @@ def to_result(state: TriageState) -> TriageResult:
         differential=post.differential,
         actions=post.actions,
         doses=post.doses,
+        dosing_notes=post.dosing_notes,
         citations=post.citations,
         grounding=post.grounding,
         retrieval=state.retrieval,

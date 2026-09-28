@@ -8,7 +8,12 @@ from backend.app.graph.pipeline import run_triage
 from backend.app.graph.state import TriageRequest
 from backend.app.llm.spend import SpendLimitError
 from backend.app.rules.danger_signs import LASSA_IPC_REMINDER
-from backend.app.rules.dosing import DOSE_PLACEHOLDER, UNVERIFIED_WARNING
+from backend.app.rules.dosing import (
+    AL_ABSORPTION_NOTE,
+    AL_SPLITTING_NOTE,
+    DOSE_PLACEHOLDER,
+    UNVERIFIED_WARNING,
+)
 from backend.app.schemas import DangerSignCode, FollowUpAnswer, TriageLevel
 from tests.pipeline_fakes import (
     COMPOSE_EN,
@@ -263,13 +268,20 @@ def test_uncomplicated_malaria_is_treat_and_monitor_with_table_dose(tmp_path: Pa
     assert r.triage_level == TriageLevel.TREAT_MONITOR
     assert r.danger_signs == []
     assert "80/480" not in r.actions[0].text and DOSE_PLACEHOLDER in r.actions[0].text
-    (dose,) = r.doses
-    assert dose.weight_band == "35 kg and above"
-    assert dose.regimen.startswith("4 tablets per dose")
-    assert dose.verified is False
+    # 35kg+ has a dose at every strength (Table 4-4): default 20/120, plus both alternatives.
+    assert len(r.doses) == 3
+    default = next(d for d in r.doses if d.is_default)
+    assert default.strength == "20/120"
+    assert default.weight_band == "35 kg and above"
+    assert default.regimen.startswith("4 tablets per dose")
+    assert default.verified is False
+    alts = {d.strength: d for d in r.doses if not d.is_default}
+    assert alts["40/240"].regimen.startswith("2 tablets per dose")
+    assert alts["80/480"].regimen.startswith("1 tablet per dose")
     assert UNVERIFIED_WARNING in r.warnings
     assert "UNVERIFIED table" in r.referral_note
     assert any("Removed 1 dose mention" in w for w in r.warnings)
+    assert {n.text for n in r.dosing_notes} == {AL_SPLITTING_NOTE, AL_ABSORPTION_NOTE}
 
 
 # --- follow-up questions and resume ------------------------------------------

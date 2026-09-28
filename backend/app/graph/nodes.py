@@ -41,7 +41,7 @@ from backend.app.rules.danger_signs import (
     assess,
     no_treatment_response,
 )
-from backend.app.rules.dosing import doses_for, strip_doses
+from backend.app.rules.dosing import doses_for, guideline_notes, strip_doses
 from backend.app.rules.followup import merge_advice, treat_monitor_advice
 from backend.app.rules.grounding import patient_fact_supported, verify_quote
 from backend.app.schemas import (
@@ -454,6 +454,7 @@ def rules_post(state: TriageState, deps: Deps) -> dict[str, Any]:
     # 5. Doses from the table only.
     doses, dose_notes = doses_for(case, level)
     warnings += dose_notes
+    dosing_advice = guideline_notes() if doses else []
 
     # 6. Never hide missing context.
     if ctx is None or ctx.status != "ok":
@@ -483,6 +484,7 @@ def rules_post(state: TriageState, deps: Deps) -> dict[str, Any]:
         differential=differential,
         actions=actions,
         doses=doses,
+        dosing_notes=dosing_advice,
         citations=list(resolved.values()),
         warnings=warnings,
     )
@@ -647,7 +649,10 @@ def compose(state: TriageState, deps: Deps) -> dict[str, Any]:
     lines = [header, note.rstrip()]
     for d in post.doses:
         flag = "" if d.verified else " (UNVERIFIED table)"
-        lines.append(f"Dose from table{flag}: {d.drug}, {d.weight_band}: {d.regimen}.")
+        tag = "Dose from table" if d.is_default else "Alternative dose"
+        lines.append(f"{tag}{flag}: {d.drug}, {d.weight_band}: {d.regimen}.")
+    for n in post.dosing_notes:
+        lines.append(n.text)
     if post.triage_level != TriageLevel.TREAT_MONITOR:
         lines.append("Referred to: ____________________   By: ____________________")
     lines.append(_DISCLAIMER["pcm" if case.language == "pcm" else "en"])

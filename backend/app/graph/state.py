@@ -24,6 +24,7 @@ from backend.app.schemas import (
     FollowUpAnswer,
     FollowUpQuestion,
     GroundingSummary,
+    GuidelineNote,
     OutbreakContext,
     OutbreakSignal,
     PatientCase,
@@ -133,6 +134,7 @@ class PostOutput(BaseModel):
     differential: list[DifferentialItem] = []
     actions: list[ActionItem] = []
     doses: list[DoseRecommendation] = []
+    dosing_notes: list[GuidelineNote] = []
     citations: list[Citation] = []
     grounding: GroundingSummary = GroundingSummary()
     warnings: list[str] = []

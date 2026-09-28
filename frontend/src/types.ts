@@ -87,7 +87,14 @@ export interface DoseRecommendation {
   drug: string;
   regimen: string;
   weight_band: string;
+  strength: string; // e.g. "20/120"
+  is_default: boolean; // shown first; others are labelled alternatives
   verified: boolean;
+  citation: Citation;
+}
+
+export interface GuidelineNote {
+  text: string;
   citation: Citation;
 }
 
@@ -127,6 +134,7 @@ export interface TriageResult {
   differential: DifferentialItem[];
   actions: ActionItem[];
   doses: DoseRecommendation[];
+  dosing_notes: GuidelineNote[];
   citations: Citation[];
   summary?: string | null;
   referral_note?: string | null;

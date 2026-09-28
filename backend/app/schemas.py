@@ -212,7 +212,17 @@ class DoseRecommendation(BaseModel):
     drug: str
     regimen: str
     weight_band: str
+    strength: str  # e.g. "20/120" -- the AL tablet strength this dose is for
+    is_default: bool = False  # the UI shows this one first; others are "alternatives"
     verified: bool  # False until checked against the guideline PDF
+    citation: Citation
+
+
+class GuidelineNote(BaseModel):
+    """A fixed, cited piece of guideline advice that isn't a dose (e.g. "don't split
+    tablets"). Not an LLM claim, so it carries a direct Citation rather than Evidence."""
+
+    text: str
     citation: Citation
 
 
@@ -288,6 +298,7 @@ class TriageResult(BaseModel):
     differential: list[DifferentialItem] = []
     actions: list[ActionItem] = []
     doses: list[DoseRecommendation] = []
+    dosing_notes: list[GuidelineNote] = []
     citations: list[Citation] = []
     grounding: GroundingSummary = GroundingSummary()
     retrieval: list[RetrievalQuery] = []

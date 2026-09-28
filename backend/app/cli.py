@@ -56,7 +56,10 @@ def print_result(r: TriageResult, colour: bool) -> None:
             print(f"  - {a.text}" + (f"  [{', '.join(a.citations)}]" if a.citations else ""))
         for d in r.doses:
             flag = "verified" if d.verified else "UNVERIFIED"
-            print(f"  - DOSE ({flag}): {d.drug}, {d.weight_band}: {d.regimen}")
+            tag = "default" if d.is_default else "alternative"
+            print(f"  - DOSE ({flag}, {tag}): {d.drug}, {d.weight_band}: {d.regimen}")
+        for n in r.dosing_notes:
+            print(f"  - NOTE: {n.text}  [{n.citation.ref}]")
         if r.summary:
             print(f"\nSummary: {r.summary}")
         if r.referral_note:
