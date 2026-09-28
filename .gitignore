@@ -17,7 +17,7 @@ __pycache__/
 data/index/
 data/index_fake/
 data/raw/
-*.pdf
+data/raw/*.pdf
 
 # Frontend
 node_modules/
