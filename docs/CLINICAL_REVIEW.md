@@ -9,7 +9,7 @@ Status key: **Pending** = not yet reviewed.
 
 ## Reviewer sign-off
 
-**Reviewer:** Dr. Oluba O. Amos, Pharmacist ([@AmazingAmos](https://github.com/AmazingAmos))
+**Reviewer:** Dr. Oluba O. Amos, PharmD ([@AmazingAmos](https://github.com/AmazingAmos))
 
 **Date reviewed:** *pending*
 

@@ -86,7 +86,7 @@ export function About() {
             <section>
               <h2 className="mb-1 text-lg font-bold">Clinical review</h2>
               <p className="text-sm text-slate-600">
-                Reviewed by Dr. Oluba O. Amos, Pharmacist (
+                Reviewed by Dr. Oluba O. Amos, PharmD (
                 <a className="text-sky-800 underline" href="https://github.com/AmazingAmos" target="_blank" rel="noreferrer">
                   @AmazingAmos
                 </a>

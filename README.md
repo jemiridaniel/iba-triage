@@ -247,7 +247,7 @@ uv run python -m eval.report
 <!--
 ## Clinical review
 
-Reviewed by Dr. Oluba O. Amos, Pharmacist ([@AmazingAmos](https://github.com/AmazingAmos)).
+Reviewed by Dr. Oluba O. Amos, PharmD ([@AmazingAmos](https://github.com/AmazingAmos)).
 Credited for clinical review only, not a project collaborator or commit co-author (the
 hackathon requires sole ownership by Daniel Jemiri). See docs/CLINICAL_REVIEW.md.
 
