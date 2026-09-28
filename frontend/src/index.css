@@ -30,9 +30,31 @@ body {
   .fade-in, .pop-in, .slide-up, .grow-x, .spinner { animation: none; }
 }
 
-/* Print only the referral note. */
+/* #print-root (see index.html) is a sibling of the app's #root, not a descendant. The
+   referral note portals into it (PrintableNote in ResultCard.tsx) so that on print, the
+   entire app can collapse to nothing and the note renders in ordinary document flow at the
+   top of page 1 -- not wherever it happened to be scrolled to. A visibility-only approach
+   (hiding #root's content but leaving its box in flow) pushed the note pages deep into the
+   document instead, since Chrome paginates print output from the top of the real layout. */
+#print-root { display: none; }
+
 @media print {
-  body * { visibility: hidden; }
-  .print-area, .print-area * { visibility: visible; }
-  .print-area { position: absolute; inset: 0 auto auto 0; width: 100%; background: white; box-shadow: none; }
+  @page { size: A4; margin: 12mm; }
+  body { background: #fff !important; }
+  /* Collapses all app chrome in one step: header, buttons, chips, input box, footer bar. */
+  #root, #launch { display: none !important; }
+  #print-root {
+    display: block !important;
+    background: #fff;
+    color: #000;
+  }
+  /* PHC printers are usually monochrome: force true black/white regardless of any on-screen
+     colour utility class, so urgency reads through border weight, not colour. */
+  #print-root * {
+    color: #000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  /* Never split a labelled section, the banner or the signature block across a page break. */
+  .print-block { break-inside: avoid; page-break-inside: avoid; }
 }

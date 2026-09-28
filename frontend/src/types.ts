@@ -9,6 +9,19 @@ export interface DangerSignHit {
   evidence?: string | null;
 }
 
+export interface PatientCase {
+  age_years?: number | null;
+  sex?: "male" | "female" | null;
+  weight_kg?: number | null;
+  pregnant?: boolean | null;
+  fever_days?: number | null;
+  temperature_c?: number | null;
+  rdt_result?: "positive" | "negative" | "not_done" | null;
+  symptoms: string[];
+  state?: string | null;
+  lga?: string | null;
+}
+
 export interface FollowUpQuestion {
   id: string;
   text: string;
@@ -135,6 +148,7 @@ export interface TriageResult {
   triage_label?: string | null;
   triage_rationale?: string | null;
   questions: FollowUpQuestion[];
+  case?: PatientCase | null;
   danger_signs: DangerSignHit[];
   lassa_suspected: boolean;
   outbreak?: OutbreakContext | null;

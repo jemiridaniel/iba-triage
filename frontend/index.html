@@ -140,6 +140,10 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Print target for the referral note (see PrintableNote in ResultCard.tsx). Sits
+         outside #root so print CSS can collapse the whole app to nothing and let this render
+         in normal flow at the top of page 1, instead of wherever it happened to scroll to. -->
+    <div id="print-root"></div>
     <div id="launch" role="status" aria-live="polite" aria-label="Ibà is starting">
       <svg class="iba-logo" viewBox="0 0 64 64" role="img" aria-label="Ibà is loading">
         <rect width="64" height="64" rx="14" fill="#0d4e4a" />

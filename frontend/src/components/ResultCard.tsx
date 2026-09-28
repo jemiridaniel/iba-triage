@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type {
   ActionItem,
   Citation,
@@ -10,6 +11,7 @@ import type {
   LiveRun,
   OutbreakContext,
   OutbreakSignal,
+  PatientCase,
   TriageLevel,
 } from "../types";
 
@@ -415,7 +417,181 @@ function Doses({ doses, notes, onOpen }: { doses: DoseRecommendation[]; notes: G
   );
 }
 
-function ReferralNote({ note }: { note: string }) {
+/** One labelled block of the printed form. Bordered, not shaded -- monochrome PHC printers
+ *  need borders and weight to carry hierarchy, not colour. Never split across a page. */
+function PrintBlock({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="print-block mb-2 border border-black">
+      <h3 className="border-b border-black px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
+        {title}
+      </h3>
+      <div className="px-2 py-1.5 text-[12px] leading-snug">{children}</div>
+    </section>
+  );
+}
+
+function PrintRow({ label, value }: { label: string; value: string }) {
+  return (
+    <p>
+      <span className="font-semibold">{label}:</span> {value}
+    </p>
+  );
+}
+
+/** A labelled ruled line for the health worker to write on by hand. */
+function FillLine({ label, tall = false }: { label: string; tall?: boolean }) {
+  return (
+    <div className="flex items-end gap-2">
+      <span className="whitespace-nowrap text-[11px] font-semibold">{label}:</span>
+      <span className={`flex-1 border-b border-black ${tall ? "h-12" : "h-5"}`} />
+    </div>
+  );
+}
+
+function outbreakSourceLabel(s: OutbreakSignal): string {
+  if (s.basis === "live") {
+    if (s.recency === "unknown") return "live report, date unknown";
+    if (s.recency === "older") return `live report, ${s.report_date} (older report)`;
+    return `live report, ${s.report_date}`;
+  }
+  const parts = [s.report, s.epi_week, s.page ? `p.${s.page}` : null].filter(Boolean);
+  const source = parts.length ? parts.join(", ") : "Ibà baseline";
+  return s.recency === "older" ? `${source} (older surveillance)` : source;
+}
+
+/** The printed referral form: A4, monochrome, one page where possible. Built from the
+ *  structured result (not the plain-text note) so every section can be properly labelled. */
+function PrintableNote({ run, state }: { run: LiveRun; state: string }) {
+  const post = run.post;
+  const final = run.final;
+  const c: PatientCase | null | undefined = final?.case;
+  const level = final?.triage_label ?? post?.triage_level ?? "";
+  const differential = post?.differential ?? [];
+  const dangerSigns = post?.danger_signs ?? run.dangerSigns ?? [];
+  const outbreakSignals = [...(run.outbreak?.signals ?? []), ...(run.outbreak?.baseline ?? [])];
+  const disclaimer = final?.disclaimer ?? "Decision support only, not a diagnosis. A qualified health worker must confirm.";
+  const dateStr = new Date().toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+
+  const subtitle = post?.lassa_suspected
+    ? "SUSPECTED LASSA FEVER"
+    : differential[0]
+      ? `SUSPECTED ${differential[0].condition.toUpperCase()}`
+      : null;
+
+  const dangerCodes = new Set(dangerSigns.map((d) => d.code));
+  const humanize = (s: string) => s.replace(/_/g, " ").replace(/^./, (ch) => ch.toUpperCase());
+  const findings: string[] = [];
+  if (c?.fever_days != null) findings.push(`Fever for ${c.fever_days} day(s)`);
+  if (c?.temperature_c != null) findings.push(`Temperature ${c.temperature_c}°C`);
+  if (c?.rdt_result) findings.push(`Malaria RDT: ${c.rdt_result.replace("_", " ")}`);
+  // Danger signs are listed on their own line below; don't repeat the same code here.
+  for (const s of c?.symptoms ?? []) if (!dangerCodes.has(s)) findings.push(humanize(s));
+
+  const printRoot = typeof document !== "undefined" ? document.getElementById("print-root") : null;
+  if (!printRoot) return null;
+
+  return createPortal(
+    <div id="print-note">
+      <header className="print-block mb-2 flex items-baseline justify-between border-b-2 border-black pb-1">
+        <p className="text-base font-extrabold tracking-wide">IBÀ TRIAGE NOTE</p>
+        <p className="text-xs font-semibold">{dateStr}</p>
+      </header>
+
+      <div className="print-block mb-3 border-4 border-black p-3 text-center">
+        <p className="text-2xl font-extrabold uppercase leading-tight tracking-wide">
+          {level}
+          {subtitle && <><br />{subtitle}</>}
+        </p>
+      </div>
+
+      <PrintBlock title="Patient">
+        <div className="grid grid-cols-2 gap-x-4">
+          <PrintRow label="Age" value={c?.age_years != null ? `${c.age_years} years` : "—"} />
+          <PrintRow label="Sex" value={c?.sex ?? "—"} />
+          <PrintRow label="State / LGA" value={[c?.state ?? state, c?.lga].filter(Boolean).join(" / ") || "—"} />
+          {c?.weight_kg != null && <PrintRow label="Weight" value={`${c.weight_kg} kg`} />}
+          {c?.pregnant ? <PrintRow label="Pregnant" value="Yes" /> : null}
+        </div>
+      </PrintBlock>
+
+      <PrintBlock title="Presenting findings">
+        {findings.length || dangerSigns.length ? (
+          <ul className="list-disc pl-4">
+            {findings.map((f) => <li key={f}>{f}</li>)}
+            {dangerSigns.map((d) => <li key={d.code} className="font-bold">Danger sign: {d.label}</li>)}
+          </ul>
+        ) : (
+          <p>None recorded.</p>
+        )}
+      </PrintBlock>
+
+      <PrintBlock title="Triage decision">
+        <p className="font-bold uppercase">{level}</p>
+        {post?.triage_rationale && <p className="mt-0.5">{post.triage_rationale}</p>}
+      </PrintBlock>
+
+      {differential.length > 0 && (
+        <PrintBlock title="Suspected condition">
+          <ol className="list-decimal space-y-0.5 pl-4">
+            {differential.map((d) => (
+              <li key={d.condition}>{d.condition} <span className="italic">({d.likelihood})</span></li>
+            ))}
+          </ol>
+        </PrintBlock>
+      )}
+
+      <PrintBlock title="Advised actions">
+        <ol className="list-decimal space-y-0.5 pl-4">
+          {(post?.actions ?? []).map((a, i) => <li key={i}>{a.text}</li>)}
+          {(post?.doses ?? []).map((d) => (
+            <li key={d.drug}>
+              {d.drug}: {d.regimen}{!d.verified && " (UNVERIFIED table)"}
+            </li>
+          ))}
+          {(post?.dosing_notes ?? []).map((n) => <li key={n.text}>{n.text}</li>)}
+        </ol>
+      </PrintBlock>
+
+      <PrintBlock title="Outbreak context">
+        {outbreakSignals.length ? (
+          <ul className="list-disc space-y-0.5 pl-4">
+            {outbreakSignals.map((s, i) => (
+              <li key={`${s.disease}-${s.state}-${i}`}>
+                {s.disease} — {s.state} ({outbreakSourceLabel(s)})
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>{run.outbreak?.message ?? "No outbreak data checked."}</p>
+        )}
+      </PrintBlock>
+
+      <section className="print-block mt-3 border-2 border-black p-2">
+        <h3 className="mb-2 border-b border-black pb-1 text-[11px] font-bold uppercase tracking-wider">
+          To be completed by health worker
+        </h3>
+        <div className="space-y-3">
+          <FillLine label="Referred to (facility)" />
+          <FillLine label="Referred by (name and cadre)" />
+          <div className="grid grid-cols-3 gap-4">
+            <FillLine label="Date" />
+            <FillLine label="Time" />
+            <FillLine label="Phone" />
+          </div>
+          <FillLine label="Notes" tall />
+        </div>
+      </section>
+
+      <footer className="print-block mt-3 border-t border-black pt-1 text-[9px] leading-tight">
+        <p>{disclaimer}</p>
+        <p className="mt-0.5 italic">Generated by Ibà — decision support only. Not a diagnosis.</p>
+      </footer>
+    </div>,
+    printRoot,
+  );
+}
+
+function ReferralNote({ note, run, state }: { note: string; run: LiveRun; state: string }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try {
@@ -434,7 +610,8 @@ function ReferralNote({ note }: { note: string }) {
   const canShare = typeof navigator.share === "function";
   return (
     <div>
-      <pre className="print-area whitespace-pre-wrap rounded-md bg-slate-50 p-3 font-sans text-sm leading-relaxed ring-1 ring-slate-200">{note}</pre>
+      <pre className="whitespace-pre-wrap rounded-md bg-slate-50 p-3 font-sans text-sm leading-relaxed ring-1 ring-slate-200">{note}</pre>
+      <PrintableNote run={run} state={state} />
       <div className="mt-2 grid grid-cols-2 gap-2">
         <button onClick={copy} className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 font-semibold active:scale-95 transition">
           {copied ? "Copied ✓" : "Copy"}
@@ -494,7 +671,7 @@ export function ResultCard({ run, state, onOpenTrace, onOpenCitation }: {
       {(run.summary || run.referralNote) && (
         <Section title="Summary & referral note">
           {run.summary && <p className="mb-2 text-[15px] leading-snug">{run.summary}</p>}
-          {run.referralNote && <ReferralNote note={run.referralNote} />}
+          {run.referralNote && <ReferralNote note={run.referralNote} run={run} state={state} />}
         </Section>
       )}
       {post && !run.referralNote && running && <Section title="Referral note"><Pending label="Writing note" /></Section>}
