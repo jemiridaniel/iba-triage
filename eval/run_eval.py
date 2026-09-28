@@ -200,6 +200,7 @@ def summarise(
         "config": config,
         "outbreak_mode": mode,
         "live_signal": live,
+        "clinician_reviewed": case.get("clinician_reviewed", False),
         "ts": datetime.now(UTC).isoformat(timespec="seconds"),
         "gold": effective_gold(case, live),
         "status": result.status,

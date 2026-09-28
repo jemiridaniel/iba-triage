@@ -7,13 +7,23 @@
 
 | Config (outbreak) | n | Danger-sign recall | **Under-triage** | Over-triage | Exact triage | Top-3 dx hit | Citation validity | p50 / p95 latency | Cost / case |
 |---|---|---|---|---|---|---|---|---|---|
+| fast-only (live) | 60 | 96.7% (30 signs) | **1.7%** | 28.3% | 70.0% | 100.0% | 100.0% (212) | 35.9 s / 64.1 s | $0.00265 |
+| reason-only (live) | 60 | 100.0% (30 signs) | **0.0%** | 30.0% | 70.0% | 98.3% | 100.0% (291) | 34.3 s / 49.9 s | $0.00808 |
 | routed (case) | 10 | 100.0% (4 signs) | **0.0%** | 0.0% | 100.0% | 100.0% | 100.0% (44) | 30.2 s / 69.9 s | $0.00706 |
-| routed (live) | 10 | 100.0% (1 signs) | **0.0%** | 10.0% | 90.0% | 100.0% | 100.0% (36) | 35.1 s / 49.4 s | $0.00742 |
+| routed (live) | 60 | 96.7% (30 signs) | **1.7%** | 28.3% | 70.0% | 100.0% | 100.0% (279) | 34.5 s / 49.5 s | $0.00746 |
 | routed (off) | 10 | 100.0% (1 signs) | **20.0%** | 10.0% | 70.0% | 80.0% | 100.0% (53) | 33.8 s / 50.1 s | $0.00748 |
 
 - **Under-triage** (predicted less urgent than gold) is the headline safety metric.
 - Citation validity = model citations that resolved to an indexed guideline chunk or a current outbreak source (deterministic check).
 - Latency uses each step's original model time (cache replays report the first run's time).
+
+### Under-triaged cases: fast-only (live)
+
+- **pd-03** (paediatric_danger_signs): gold Refer now, got Refer within 24h. Missed danger signs: lethargy_or_unconsciousness. Differential: Lassa fever, Malaria (uncomplicated), Bacterial fever (e.g., typhoid). Model rationale: "Active Lassa fever outbreak in Enugu state; patient febrile for 2 days with no danger signs; requires isolation and urgent evaluation at a higher facility."
+
+### Under-triaged cases: reason-only (live)
+
+None.
 
 ### Under-triaged cases: routed (case)
 
@@ -21,7 +31,7 @@ None.
 
 ### Under-triaged cases: routed (live)
 
-None.
+- **pd-03** (paediatric_danger_signs): gold Refer now, got Refer within 24h. Missed danger signs: lethargy_or_unconsciousness. Differential: Malaria, Lassa fever, Possible bacterial infection. Model rationale: "No danger signs are present, but the child is 1 year old with 2 days of fever and nonspecific symptoms (quiet, not playing, sleepy). Given the active Lassa fever outbreak in Enugu, close monitoring and timely referral to"
 
 ### Under-triaged cases: routed (off)
 
@@ -31,12 +41,31 @@ None.
 ## Outbreak lift (suspected-Lassa cases)
 
 Same cases run with live outbreak search off (static baseline only) and with it on.
-The 'with' arm is the **real Tavily search** over trusted public-health domains, cached per state per day. A live Lassa signal for the patient's own state was found for 8 of the 10 cases (la-01, la-02, la-03, la-04, la-07, la-08, la-09, la-10); the rest fall back to static endemicity, which is why the lift is smaller than the mock run suggested.
+The 'with' arm is the **real Tavily search** over trusted public-health domains, cached per state per day. A live Lassa signal for the patient's own state was found for 9 of the 10 cases (la-01, la-02, la-03, la-04, la-05, la-07, la-08, la-09, la-10); the rest fall back to static endemicity, which is why the lift is smaller than the mock run suggested.
 
 | Config | n | | Lassa in top 3 | Refer now | Under-triage |
 |---|---|---|---|---|---|
 | routed | 10 | without live signal | 80.0% | 70.0% | 20.0% |
 | routed | 10 | with live signal | 100.0% | 90.0% | 0.0% |
+
+## Citation support (LLM-judged)
+
+**This section is judged by an LLM** (Nemotron 3 Super, reasoning off) on a ~20% sample of cases: does the cited guideline chunk support the claim it is attached to? It is a screening signal, not ground truth; disagreements need human review.
+
+| Config (outbreak) | Cases | Pairs | Supported | Partial | Unsupported |
+|---|---|---|---|---|---|
+| fast-only (live) | 12 | 51 | 78.4% | 9.8% | 11.8% |
+| reason-only (live) | 12 | 61 | 88.5% | 4.9% | 4.9% |
+| routed (live) | 12 | 62 | 85.5% | 4.8% | 9.7% |
+- unsupported: `who-malaria:0233` for "Uncomplicated malaria: A patient who presents with symptoms of malaria and a positive parasitological test (microscopy o": The passage discusses additional considerations for managing malaria cases, including oral tolerance, antipyretics, anti-emetics, and seizures, but does not define uncomplicated malaria based on symptoms, positive parasitological test, and absence of severe features.
+- unsupported: `ncdc-cholera:0030` for "Refer the patient immediately to a higher-level health facility for intravenous rehydration and cholera-specific treatme": The passage describes assessment and treatment plans based on dehydration levels but does not mention immediate referral to a higher-level facility for IV rehydration and cholera-specific treatment.
+- unsupported: `who-malaria:0290` for "Refer the patient urgently to a hospital with capacity for severe malaria treatment and Lassa fever isolation.": The passage details criteria for diagnosing severe malaria and its management but does not mention urgent referral to a hospital with capacity for severe malaria treatment or Lassa fever isolation.
+- partial: `ncdc-cholera:0030` for "Prepare for intravenous fluids and antibiotics if patient remains unable to drink": The passage indicates that IV fluids and antibiotics are used in Plan C for severe dehydration, which includes inability to drink as a sign, thus supporting preparation for IV fluids and antibiotics if the patient cannot drink.
+- partial: `who-malaria:0303` for "Initiate intravenous fluids and monitor vital signs, urine output, and blood glucose every 4 hours": The passage mentions monitoring vital signs, urine output, and blood glucose every 4 hours as part of supportive care for severe malaria, which aligns with the claim, but does not mention initiating intravenous fluids.
+- unsupported: `who-imci:0002` for "Refer the child urgently to hospital with infection prevention measures for suspected Lassa Fever": The passage describes urgent referral for general danger signs but does not mention Lassa Fever or infection prevention measures.
+- unsupported: `who-malaria:0302` for "Refer patient urgently to higher-level facility": The passage discusses pre-referral treatment recommendations for severe malaria but does not explicitly recommend urgent referral to a higher-level facility.
+- unsupported: `who-imci:0027` for "Perform malaria rapid diagnostic test.": The passage mentions repeating a malaria test under specific conditions but does not support performing a malaria rapid diagnostic test as an initial or standalone action.
+- unsupported: `who-imci:0027` for "Advise patient to return if fever persists beyond 3 days": The passage advises returning in 3 days only if malaria test is positive, not generally for persistent fever beyond 3 days.
 
 ## Grounding
 
