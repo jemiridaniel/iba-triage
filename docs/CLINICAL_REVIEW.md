@@ -7,6 +7,24 @@ that refers more, because under-triage costs more than over-triage.
 
 Status key: **Pending** = not yet reviewed.
 
+## Reviewer sign-off
+
+**Reviewer:** Dr. Oluba O. Amos, Pharmacist ([@AmazingAmos](https://github.com/AmazingAmos))
+
+**Date reviewed:** *pending*
+
+**Status:** Not yet started. Credited for this review only — not a project collaborator or
+commit co-author (see README and About page).
+
+| # | Item | Agree | Correction |
+|---|---|---|---|
+| 1 | Lassa fever suspicion tiers | | |
+| 2 | Danger-sign rules | | |
+| 3 | Dose table | | |
+| 4 | Endemic-state baseline | | |
+| 5 | Treat & monitor advice | | |
+| 6 | Eval vignettes (60 cases — per-vignette Agree/Correction in the exported review doc) | | |
+
 ## 1. Lassa fever suspicion tiers (Pending)
 
 Code: `lassa_assessment` in [backend/app/rules/danger_signs.py](../backend/app/rules/danger_signs.py).

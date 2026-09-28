@@ -244,6 +244,16 @@ uv run python -m eval.report
 
 `uv run pytest -m live` runs opt-in tests against real APIs (spends credits).
 
+<!--
+## Clinical review
+
+Reviewed by Dr. Oluba O. Amos, Pharmacist ([@AmazingAmos](https://github.com/AmazingAmos)).
+Credited for clinical review only, not a project collaborator or commit co-author (the
+hackathon requires sole ownership by Daniel Jemiri). See docs/CLINICAL_REVIEW.md.
+
+Uncomment this section once docs/CLINICAL_REVIEW.md's sign-off is dated and complete.
+-->
+
 ## Licence
 
 Apache-2.0. See [LICENSE](LICENSE).

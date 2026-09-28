@@ -77,6 +77,23 @@ export function About() {
               Nigerian government publications used for retrieval and citation only.
             </p>
           </section>
+
+          {/*
+            Clinical review credit — uncomment once docs/CLINICAL_REVIEW.md's sign-off is
+            dated and complete. Credited for review only, not a project collaborator or
+            commit co-author (the hackathon requires sole ownership by Daniel Jemiri).
+
+            <section>
+              <h2 className="mb-1 text-lg font-bold">Clinical review</h2>
+              <p className="text-sm text-slate-600">
+                Reviewed by Dr. Oluba O. Amos, Pharmacist (
+                <a className="text-sky-800 underline" href="https://github.com/AmazingAmos" target="_blank" rel="noreferrer">
+                  @AmazingAmos
+                </a>
+                ).
+              </p>
+            </section>
+          */}
         </>
       )}
     </div>
