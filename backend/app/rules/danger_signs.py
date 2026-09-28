@@ -314,13 +314,20 @@ def active_outbreak(
 def endemic_baseline(
     signals: list[OutbreakSignal], state: str | None, disease: str
 ) -> OutbreakSignal | None:
-    """A static baseline endemicity entry for `disease` in `state`."""
+    """A high-burden static baseline entry for `disease` in `state`.
+
+    Only tier="high_burden" baseline entries can drive an escalation rule (this is what makes
+    "high_burden escalates" true for Lassa's baseline branch below). tier="reported" entries
+    are still returned to the reasoning prompt (they inform the differential), but never from
+    here -- this function is only ever used to decide whether a rule may escalate.
+    """
     if not state:
         return None
     target = _norm_state(state)
     for sig in signals:
         if (
             sig.basis == "baseline"
+            and sig.tier == "high_burden"
             and disease in sig.disease.lower()
             and _norm_state(sig.state) == target
         ):

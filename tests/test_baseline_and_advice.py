@@ -116,8 +116,9 @@ def test_antibiotic_failure_counts() -> None:
 # --- endemicity baseline ---------------------------------------------------------
 
 
-def test_endemicity_yaml_is_marked_provisional() -> None:
-    assert ENDEMICITY.entries and not ENDEMICITY.all_verified
+def test_endemicity_yaml_is_now_verified() -> None:
+    # Sourced against current NCDC situation reports (2026-09-28); no longer provisional.
+    assert ENDEMICITY.entries and ENDEMICITY.all_verified
 
 
 def test_baseline_for_state_and_season() -> None:
@@ -127,7 +128,7 @@ def test_baseline_for_state_and_season() -> None:
     assert lassa.basis == "baseline" and lassa.status == "endemic" and lassa.in_season is True
     (off,) = [s for s in ENDEMICITY.for_state("Ondo", date(2026, 7, 1)) if "Lassa" in s.disease]
     assert off.in_season is False
-    assert ENDEMICITY.for_state("Lagos", TODAY) == []
+    assert ENDEMICITY.for_state("Kwara", TODAY) == []  # not on any of the three disease lists
     assert ENDEMICITY.for_state(None, TODAY) == []
 
 
@@ -161,6 +162,136 @@ def test_live_and_baseline_are_separate(tmp_path: Path) -> None:
     assert all(s.basis == "live" for s in ctx.signals)
     assert all(s.basis == "baseline" for s in ctx.baseline)
     assert "baseline" not in ctx.message
+
+
+# --- endemicity tiers (NCDC-sourced, 2026-09-28) -----------------------------------
+
+
+def test_lassa_tiers() -> None:
+    for state in ("Ondo", "Edo", "Bauchi", "Taraba", "Benue"):
+        (sig,) = [s for s in ENDEMICITY.for_state(state, TODAY) if "Lassa" in s.disease]
+        assert sig.tier == "high_burden" and sig.confirmed is True
+
+    (kogi,) = [s for s in ENDEMICITY.for_state("Kogi", TODAY) if "Lassa" in s.disease]
+    assert kogi.tier == "reported" and kogi.confirmed is True
+
+    (ebonyi,) = [s for s in ENDEMICITY.for_state("Ebonyi", TODAY) if "Lassa" in s.disease]
+    assert ebonyi.tier == "reported" and ebonyi.confirmed is False
+
+
+def test_reported_tier_lassa_state_does_not_escalate() -> None:
+    # Ebonyi and Kogi are "reported": meeting the case definition there must NOT hit the
+    # baseline escalation branch (endemic_baseline() only matches tier="high_burden").
+    case = PatientCase(
+        fever_days=5, state="Kogi", raw_text="sore throat and body weakness", symptoms=[]
+    )
+    assert lassa_assessment(case, ENDEMICITY.for_state("Kogi", TODAY), []) is None
+    case2 = PatientCase(
+        fever_days=5, state="Ebonyi", raw_text="sore throat and body weakness", symptoms=[]
+    )
+    assert lassa_assessment(case2, ENDEMICITY.for_state("Ebonyi", TODAY), []) is None
+
+
+def test_csm_tiers() -> None:
+    belt = (
+        "Sokoto", "Kebbi", "Zamfara", "Katsina", "Kano",
+        "Jigawa", "Yobe", "Borno", "Bauchi", "Gombe",
+    )
+    for state in belt:
+        (sig,) = [
+            s for s in ENDEMICITY.for_state(state, TODAY) if "meningitis" in s.disease.lower()
+        ]
+        assert sig.tier == "high_burden"
+    (bayelsa,) = [
+        s for s in ENDEMICITY.for_state("Bayelsa", TODAY) if "meningitis" in s.disease.lower()
+    ]
+    assert bayelsa.tier == "reported"
+
+
+def test_bayelsa_cholera_now_gets_a_baseline() -> None:
+    # Bayelsa was 66% of all 2025 cholera cases (NCDC Epi Week 9, 2025) -- Active, high_burden.
+    signals = [s for s in ENDEMICITY.for_state("Bayelsa", TODAY) if s.disease == "Cholera"]
+    assert len(signals) == 1
+    assert signals[0].tier == "high_burden"
+    assert signals[0].report == "NCDC Cholera Situation Report"
+
+
+def test_kano_cholera_no_longer_gets_a_baseline() -> None:
+    # Kano never appears in the cholera report at all; removed entirely (not even reported).
+    assert [s for s in ENDEMICITY.for_state("Kano", TODAY) if s.disease == "Cholera"] == []
+    # Kano is still CSM high_burden -- only its cholera entry was removed.
+    csm = [s for s in ENDEMICITY.for_state("Kano", TODAY) if "meningitis" in s.disease.lower()]
+    assert len(csm) == 1 and csm[0].tier == "high_burden"
+
+
+def test_zamfara_cholera_also_removed() -> None:
+    assert [s for s in ENDEMICITY.for_state("Zamfara", TODAY) if s.disease == "Cholera"] == []
+
+
+def test_cholera_reported_tier_states() -> None:
+    (adamawa,) = [s for s in ENDEMICITY.for_state("Adamawa", TODAY) if s.disease == "Cholera"]
+    assert adamawa.tier == "reported" and adamawa.confirmed is True
+
+
+def test_baseline_carries_report_source_and_date() -> None:
+    (lassa,) = [s for s in ENDEMICITY.for_state("Ondo", TODAY) if "Lassa" in s.disease]
+    assert lassa.report == "NCDC Lassa Fever Situation Report"
+    assert lassa.epi_week == "Week 36, 2026"
+    assert lassa.page == 1
+    assert lassa.report_date == date(2026, 9, 6)
+
+
+def test_recent_lassa_report_is_not_older_surveillance() -> None:
+    (lassa,) = [s for s in ENDEMICITY.for_state("Ondo", TODAY) if "Lassa" in s.disease]
+    assert lassa.recency == "current"
+
+
+def test_stale_csm_and_cholera_reports_are_older_surveillance() -> None:
+    # Both reports are the newest NCDC has published, but from early-mid 2025 -- well over
+    # 6 months before TODAY.
+    (csm,) = [s for s in ENDEMICITY.for_state("Kano", TODAY) if "meningitis" in s.disease.lower()]
+    assert csm.recency == "older"
+    (cholera,) = [s for s in ENDEMICITY.for_state("Bayelsa", TODAY) if s.disease == "Cholera"]
+    assert cholera.recency == "older"
+
+
+def test_reason_prompt_shows_baseline_tiers_and_source() -> None:
+    from backend.app.graph.prompts import reason_messages
+    from backend.app.graph.state import RuleSnapshot
+    from backend.app.schemas import OutbreakContext
+
+    ctx = OutbreakContext(
+        status="unavailable",
+        source="none",
+        message="x",
+        baseline=ENDEMICITY.for_state("Kano", TODAY),
+    )
+    _, user = reason_messages(
+        PatientCase(age_years=30, state="Kano"), RuleSnapshot(floor=None), [], ctx
+    )
+    text = user["content"]
+    assert "HIGH-BURDEN" in text and "REPORTED" not in text  # Kano has no reported-tier entry
+    assert "NCDC Cerebrospinal Meningitis Situation Report" in text
+    assert "older surveillance" in text
+
+
+def test_reason_prompt_labels_reported_tier_and_unconfirmed() -> None:
+    from backend.app.graph.prompts import reason_messages
+    from backend.app.graph.state import RuleSnapshot
+    from backend.app.schemas import OutbreakContext
+
+    ctx = OutbreakContext(
+        status="unavailable",
+        source="none",
+        message="x",
+        baseline=ENDEMICITY.for_state("Ebonyi", TODAY),
+    )
+    _, user = reason_messages(
+        PatientCase(age_years=30, state="Ebonyi"), RuleSnapshot(floor=None), [], ctx
+    )
+    text = user["content"]
+    assert "REPORTED" in text and "do NOT treat as grounds to escalate" in text
+    assert "NOT independently confirmed" in text
 
 
 # --- treatment-response question -------------------------------------------------
@@ -325,7 +456,8 @@ def test_regression_baseline_only_still_suspects_lassa(tmp_path: Path) -> None:
     assert r.actions[0].text == LASSA_IPC_REMINDER
     assert r.outbreak.baseline and r.outbreak.signals == []
     assert any("Using baseline endemicity only" in w for w in r.warnings)
-    assert any("provisional" in w for w in r.warnings)
+    # No longer provisional: endemicity.yaml is now sourced against current NCDC reports.
+    assert not any("provisional" in w for w in r.warnings)
 
 
 def test_regression_live_signal_raises_likelihood(tmp_path: Path) -> None:

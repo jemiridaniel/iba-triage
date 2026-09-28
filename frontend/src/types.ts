@@ -30,6 +30,13 @@ export interface OutbreakSignal {
   basis: "live" | "baseline";
   in_season?: boolean | null;
   citation?: string | null;
+  // Baseline only: which of the two tiers this state is in. high_burden may drive a
+  // deterministic escalation rule; reported informs the differential only.
+  tier?: "high_burden" | "reported" | null;
+  confirmed?: boolean; // false = carried over, not confirmed by the cited report
+  report?: string | null; // which NCDC situation report named this state
+  epi_week?: string | null;
+  page?: number | null;
 }
 
 export interface OutbreakContext {

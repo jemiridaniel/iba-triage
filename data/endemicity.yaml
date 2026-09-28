@@ -1,46 +1,104 @@
 # Static endemicity baseline: used on every case, with live outbreak signals (Tavily) on top.
 # If live data is unavailable, triage still knows that e.g. Ondo is a Lassa hotspot.
 #
-# !!! PROVISIONAL !!!  (verified: false)
-# The state lists below have NOT yet been checked against a current NCDC source. NCDC's
-# website returned HTTP 522 when we tried to fetch the Lassa situation reports and the CSM
-# guides (2026-09-22), and the downloaded guidelines do not list endemic states. Each list
-# must be confirmed against the latest NCDC situation report / guideline and `verified` set to
-# true, with `source` pointing at the document actually read. The UI labels unverified
-# entries "baseline (provisional)".
+# Sourced against current NCDC situation reports (2026-09-28). Two tiers per disease:
+#   high_burden - the states a live outbreak escalation rule (or, for Lassa, the baseline
+#                  escalation branch of lassa_assessment) is allowed to act on.
+#   reported     - states the cited report names, but not among its highest-burden ones.
+#                  These inform the differential only; they never raise the triage level on
+#                  their own (see backend/app/rules/danger_signs.py::endemic_baseline).
+# A `reported` entry may set `confirmed: false` when it is carried over from an earlier list
+# that the current report neither confirms nor rules out (its own data isn't machine-readable
+# text - see Lassa/Ebonyi below); everything else is confirmed by the cited report itself.
+#
+# `report_date` is the end of the cited report's reporting period; the UI and reasoning
+# prompt label a baseline "older surveillance" once report_date is more than ~6 months old
+# (this never gates escalation - only the high_burden/reported tier does that).
 #
 # `anchor`: (doc_id, phrase) in an indexed guideline that supports using place of residence
-# as a risk factor; resolved to a chunk ID at runtime for citation.
+# as a risk factor; resolved to a chunk ID at runtime for citation. Separate from `report`/
+# `epi_week`/`page`, which cite the NCDC situation report that names the states themselves.
 
 diseases:
   lassa:
     disease: Lassa fever
-    verified: false
-    states: [Ondo, Edo, Bauchi, Taraba, Ebonyi]
-    peak_months: [11, 12, 1, 2, 3, 4]
+    verified: true
+    report: NCDC Lassa Fever Situation Report
+    epi_week: "Week 36, 2026"
+    report_date: 2026-09-06 # end of the reporting period (31 Aug - 6 Sep 2026)
+    page: 1
     source: >-
-      States TO CONFIRM against NCDC Lassa fever situation reports (the advisory below says
-      "endemic and high-burden states" without naming them). Peak months SOURCED: NCDC/NMA
-      Joint Advisory to Doctors on Lassa Fever Vigilance (9 March 2026): "dry season from
-      November to April".
+      NCDC Lassa Fever Situation Report, Epi Week 36 2026 (31 Aug-6 Sep 2026), p.1.
+      high_burden: the 5 states accounting for 87% of 2026 confirmed cases (Ondo 34%,
+      Bauchi 24%, Taraba 12%, Edo 11%, Benue 6%). reported: Kogi had new confirmed cases in
+      week 36 itself, so it is named but not (yet) high-burden. Ebonyi is carried over from
+      the previous provisional list: neither confirmed nor ruled out by this report, since
+      NCDC's full 24-state list for 2026 is a map/figure image, not machine-readable text
+      (confirmed: false). 24 states recorded >= 1 confirmed case in 2026 in total; only the
+      states this report actually names in text are listed here.
+    peak_months: [11, 12, 1, 2, 3, 4]
     anchor: [ncdc-lassa-advisory-2026, "particularly in endemic and high-burden states"]
+    high_burden: [Ondo, Edo, Bauchi, Taraba, Benue]
+    reported:
+      - Kogi
+      - state: Ebonyi
+        confirmed: false
 
   csm:
     disease: Cerebrospinal meningitis
-    verified: false
-    states: [Sokoto, Kebbi, Zamfara, Katsina, Kano, Jigawa, Yobe, Borno, Bauchi, Gombe]
-    peak_months: [12, 1, 2, 3, 4, 5, 6]
+    verified: true
+    report: NCDC Cerebrospinal Meningitis Situation Report
+    epi_week: "Week 14, 2025 (cumulative Epi week 40 2024 - 14 2025)"
+    report_date: 2025-04-06 # end of the reporting period (31 Mar - 6 Apr 2025)
+    page: 1
     source: >-
-      TO CONFIRM: NCDC CSM Case Management Guide / situation reports (African meningitis
-      belt states in northern Nigeria; dry-season peak).
+      NCDC Cerebrospinal Meningitis Situation Report, Epi Week 14 2025 (cumulative Epi week
+      40 2024 - 14 2025 season), p.1: "Twenty-four (24) States reported suspected CSM cases".
+      high_burden: our existing 10-state meningitis-belt list (recurring high burden,
+      dry-season north) - all 10 are confirmed in NCDC's 24-state list. reported: the other
+      14 states NCDC's report names, which had >= 1 suspected case reported all season but
+      are not part of the classic belt. This is the newest CSM sitrep NCDC has published as
+      of 2026-09-28 (checked directly against the site's own listing) - CSM reporting on
+      ncdc.gov.ng has not been updated in over a year.
+    peak_months: [12, 1, 2, 3, 4, 5, 6]
     anchor: null
+    high_burden: [Sokoto, Kebbi, Zamfara, Katsina, Kano, Jigawa, Yobe, Borno, Bauchi, Gombe]
+    reported:
+      - Adamawa
+      - Akwa-Ibom
+      - Anambra
+      - Bayelsa
+      - Benue
+      - Ebonyi
+      - Ekiti
+      - FCT
+      - Kaduna
+      - Niger
+      - Ondo
+      - Osun
+      - Oyo
+      - Plateau
 
   cholera:
     disease: Cholera
-    verified: false
-    states: [Borno, Yobe, Adamawa, Bauchi, Zamfara, Katsina, Kano]
-    peak_months: [6, 7, 8, 9, 10]
+    verified: true
+    report: NCDC Cholera Situation Report
+    epi_week: "Week 9, 2025"
+    report_date: 2025-03-02 # report's own "as of 2nd March 2025"
+    page: 6
     source: >-
-      TO CONFIRM: NCDC cholera situation reports (states with recurrent outbreaks;
-      rainy-season peak). The NCDC AWD/cholera guideline does not list states.
+      NCDC Cholera Situation Report, Epi Week 9 2025 (3 Feb-2 Mar 2025), state table p.6
+      (cumulative summary p.2): 25 states reported cases since the start of the season.
+      high_burden: the 14 states the table marks "Active" (reported cases in the most
+      recent 3 weeks). reported: the other 11, which reported cases earlier in the season
+      but were not Active as of this report. Replaces the previous list entirely: Zamfara
+      and Kano do not appear anywhere in this report and have been removed. This is the
+      newest cholera sitrep NCDC has published as of 2026-09-28 (checked directly against
+      the site's own listing) - cholera reporting on ncdc.gov.ng has not been updated in
+      over a year.
+    peak_months: [6, 7, 8, 9, 10]
     anchor: null
+    high_burden:
+      [Abia, Akwa-Ibom, Bauchi, Bayelsa, Borno, Delta, Imo, Kebbi, Kogi, Lagos, Nasarawa, Osun, Rivers, Taraba]
+    reported:
+      [Adamawa, Benue, Ekiti, Enugu, Gombe, Katsina, Niger, Ondo, Oyo, Sokoto, Yobe]

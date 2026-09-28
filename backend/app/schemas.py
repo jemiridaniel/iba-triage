@@ -107,13 +107,26 @@ class OutbreakSignal(BaseModel):
     status: Literal["active", "declining", "over", "endemic", "unknown"] = "unknown"
     report_date: date | None = None  # None = the report's date could not be established
     url: str | None = None
-    # How current the report is (see tools/dates.py). Only "current" may escalate triage on
-    # its own; "older" (>60 days) and "unknown" inform the differential but cannot escalate.
+    # How current the report is. Live: computed in tools/dates.py, >60 days is "older", and
+    # only "current" may escalate triage on its own. Baseline: computed in tools/endemicity.py
+    # against a ~6-month threshold, purely descriptive ("older surveillance" in the UI/prompt)
+    # -- tier, not recency, gates baseline escalation.
     recency: Literal["current", "older", "unknown"] = "current"
     # "live": from current search results; "baseline": static endemicity from guidelines.
     basis: Literal["live", "baseline"] = "live"
     in_season: bool | None = None  # baseline only: within the disease's usual peak months
     citation: str | None = None  # baseline only: guideline chunk ID supporting the entry
+    # Baseline only, from data/endemicity.yaml: which of the two tiers this state is in.
+    # high_burden may drive a deterministic escalation rule; reported informs the
+    # differential only and never escalates on its own.
+    tier: Literal["high_burden", "reported"] | None = None
+    # Baseline only: False = carried over from an earlier list that the cited report neither
+    # confirms nor rules out (see data/endemicity.yaml for why, e.g. Lassa/Ebonyi).
+    confirmed: bool = True
+    # Baseline only: which NCDC situation report named this state, for display (source, page).
+    report: str | None = None
+    epi_week: str | None = None
+    page: int | None = None
 
 
 class GuidelineChunk(BaseModel):

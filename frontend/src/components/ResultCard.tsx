@@ -210,6 +210,30 @@ function Signal({ s, muted = false }: { s: OutbreakSignal; muted?: boolean }) {
   );
 }
 
+/** One baseline (static endemicity) entry: which NCDC report named it, and how stale that
+ *  report is. A report over ~6 months old is labelled "older surveillance" -- descriptive
+ *  only, unlike live signals this never blocks escalation (tier does that). */
+function BaselineEntry({ s, index, onOpen }: { s: OutbreakSignal; index: Map<string, Citation>; onOpen: OpenCitation }) {
+  const source = [s.report, s.epi_week, s.page ? `p.${s.page}` : null].filter(Boolean).join(", ");
+  return (
+    <div className="mt-1">
+      <strong>{s.disease}</strong>: {s.state}
+      {s.in_season && " — now in its usual peak season"}
+      {s.confirmed === false && (
+        <span className="ml-1 font-semibold text-amber-800">(not independently confirmed)</span>
+      )}
+      {source && (
+        <span className="text-slate-500">
+          {" "}
+          · {source}
+          {s.recency === "older" && <span className="font-semibold text-amber-800"> · older surveillance</span>}
+        </span>
+      )}
+      {s.citation && <Cites refs={[s.citation]} index={index} onOpen={onOpen} />}
+    </div>
+  );
+}
+
 function Outbreak({ ctx, index, onOpen, state }: { ctx: OutbreakContext; index: Map<string, Citation>; onOpen: OpenCitation; state: string }) {
   const live = ctx.status === "ok";
   // NCDC sitreps are national, so a search for one state returns outbreaks in others. Only
@@ -248,15 +272,23 @@ function Outbreak({ ctx, index, onOpen, state }: { ctx: OutbreakContext; index: 
       )}
       {ctx.baseline.length > 0 ? (
         <div className="rounded-md bg-slate-50 p-2 ring-1 ring-slate-200">
-          <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-bold text-slate-700">BASELINE · provisional</span>
-          {!live && <span className="ml-2 text-xs text-slate-500">used because live data is off</span>}
-          {ctx.baseline.map((s) => (
-            <div key={`b-${s.disease}`} className="mt-1">
-              <strong>{s.disease}</strong>: {s.state} is an endemic / high-burden state
-              {s.in_season && " — now in its usual peak season"}
-              {s.citation && <Cites refs={[s.citation]} index={index} onOpen={onOpen} />}
+          {!live && <span className="text-xs text-slate-500">used because live data is off</span>}
+          {ctx.baseline.filter((s) => s.tier === "high_burden").length > 0 && (
+            <div>
+              <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-bold text-slate-700">BASELINE · high burden</span>
+              {ctx.baseline
+                .filter((s) => s.tier === "high_burden")
+                .map((s) => <BaselineEntry key={`b-${s.disease}-${s.state}`} s={s} index={index} onOpen={onOpen} />)}
             </div>
-          ))}
+          )}
+          {ctx.baseline.filter((s) => s.tier === "reported").length > 0 && (
+            <div className="mt-2">
+              <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-bold text-slate-700">BASELINE · reported (context only)</span>
+              {ctx.baseline
+                .filter((s) => s.tier === "reported")
+                .map((s) => <BaselineEntry key={`b-${s.disease}-${s.state}`} s={s} index={index} onOpen={onOpen} />)}
+            </div>
+          )}
         </div>
       ) : (
         <p className="text-xs text-slate-500">No endemic diseases listed for {state || "this state"} in Ibà's baseline.</p>

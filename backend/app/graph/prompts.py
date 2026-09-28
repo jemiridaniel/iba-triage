@@ -162,6 +162,42 @@ def _signal_groups(signals: list[OutbreakSignal], state: str | None) -> str:
     return "\n\n".join(blocks)
 
 
+def _baseline_line(s: OutbreakSignal) -> str:
+    source = f"{s.report}, {s.epi_week}" + (f", p.{s.page}" if s.page else "")
+    when = f" ({source}" + (", older surveillance" if s.recency == "older" else "") + ")"
+    line = f"- {s.disease}: {s.state} is a reported area" + when
+    if s.in_season:
+        line += " -- currently its usual peak season"
+    if not s.confirmed:
+        line += " -- NOT independently confirmed by this report (carried over; not ruled out)"
+    if s.citation:
+        line += f" [{s.citation}]"
+    return line
+
+
+def _baseline_text(baseline: list[OutbreakSignal]) -> str:
+    """Baseline endemicity, grouped by tier (same split as live signals, FEEDBACK T3-style).
+
+    high_burden may support a rule-based escalation (Lassa's baseline branch); reported is
+    context only and must never be treated as grounds to escalate on its own.
+    """
+    if not baseline:
+        return "None listed for this state."
+    high = [s for s in baseline if s.tier == "high_burden"]
+    reported = [s for s in baseline if s.tier == "reported"]
+    blocks = []
+    if high:
+        blocks.append(
+            "HIGH-BURDEN (may support referral):\n" + "\n".join(_baseline_line(s) for s in high)
+        )
+    if reported:
+        blocks.append(
+            "REPORTED (context only -- do NOT treat as grounds to escalate by itself):\n"
+            + "\n".join(_baseline_line(s) for s in reported)
+        )
+    return "\n\n".join(blocks)
+
+
 def reason_messages(
     case: PatientCase,
     pre: RuleSnapshot,
@@ -182,15 +218,7 @@ def reason_messages(
     else:
         outbreak_text = _signal_groups(outbreak.signals, case.state)
     baseline = outbreak.baseline if outbreak is not None else []
-    baseline_text = (
-        "\n".join(
-            f"- {s.disease}: {s.state} is an endemic/high-burden state"
-            + (" and this is its usual peak season" if s.in_season else "")
-            + (f" [{s.citation}]" if s.citation else "")
-            for s in baseline
-        )
-        or "None listed for this state."
-    )
+    baseline_text = _baseline_text(baseline)
     rules = {
         "danger_signs": [h.label for h in pre.danger_signs],
         "triage_floor": pre.floor.value if pre.floor else None,
