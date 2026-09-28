@@ -14,9 +14,9 @@ taken by the patient". **NMEP does not give an hour-by-hour breakdown (no "0 h a
 anywhere in the document)** -- that level of detail is a WHO convention, not stated here, so
 it is never attributed to this citation.
 
-!!! UNVERIFIED STUB !!!
-TABLE_VERIFIED is False until a human checks the table below against the printed guideline.
-Every dose is returned with verified=False and the UI shows a warning until then.
+Verified against the NMEP 4th edition (May 2020) Table 4-4, p.10 by DJ, 2026-09-28: all four
+weight bands and their boundaries, every tablet count across the three strengths (including
+the NA cells), matched the printed table exactly.
 """
 
 import re
@@ -31,7 +31,7 @@ from backend.app.schemas import (
     TriageLevel,
 )
 
-TABLE_VERIFIED = False
+TABLE_VERIFIED = True  # Verified against NMEP 4th ed. (May 2020) Table 4-4, p.10 by DJ, 2026-09-28
 UNVERIFIED_WARNING = (
     "Dose table is an UNVERIFIED stub pending confirmation against the national malaria "
     "guideline. Check every dose against the printed guideline before use."

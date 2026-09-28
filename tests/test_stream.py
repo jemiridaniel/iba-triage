@@ -111,5 +111,6 @@ def test_meta_lists_sources_and_licences(client_for) -> None:
     assert body["models"]["reason"] == "reason"
     licences = {s["doc_id"]: s["licence"] for s in body["sources"]}
     assert licences["who-malaria"] == "CC BY-NC-SA 3.0 IGO"
-    assert body["dose_table_verified"] is False
+    # Verified against NMEP 4th ed. (May 2020) Table 4-4, p.10 by DJ, 2026-09-28.
+    assert body["dose_table_verified"] is True
     assert "api_key" not in json.dumps(body).lower()

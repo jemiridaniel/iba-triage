@@ -71,7 +71,7 @@ def test_doses_for_per_band_per_strength(kg: float, strength: str, expected: int
         assert dose.strength == strength
         assert dose.citation.doc_id == "nmep-malaria"
         assert dose.citation.page == 10
-        assert dose.verified is TABLE_VERIFIED is False
+        assert dose.verified is TABLE_VERIFIED is True
 
 
 def test_5_to_15kg_only_20_120_is_suitable() -> None:
@@ -106,9 +106,11 @@ def test_only_20_120_is_flagged_default() -> None:
     assert {d.strength for d in doses if not d.is_default} == {"40/240", "80/480"}
 
 
-def test_unverified_warning_always_first_note() -> None:
+def test_table_is_verified_no_warning() -> None:
+    # Verified against NMEP 4th ed. (May 2020) Table 4-4, p.10 by DJ, 2026-09-28.
     doses, notes = doses_for(PatientCase(rdt_result="positive", weight_kg=10), TREAT)
-    assert notes[0] == UNVERIFIED_WARNING
+    assert UNVERIFIED_WARNING not in notes
+    assert all(d.verified for d in doses)
 
 
 def test_no_weight_no_dose() -> None:

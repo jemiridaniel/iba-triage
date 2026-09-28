@@ -232,7 +232,8 @@ def test_compose_strips_doses_then_appends_table_doses_and_disclaimer(tmp_path: 
     out = nodes.compose(s, deps)["compose"]
     assert "4 tablets now" not in out.summary
     assert "500 mg" not in out.referral_note
-    assert "Dose from table (UNVERIFIED table): Artemether-lumefantrine" in out.referral_note
+    assert "Dose from table: Artemether-lumefantrine" in out.referral_note
+    assert "UNVERIFIED" not in out.referral_note
     assert out.referral_note.endswith("A qualified health worker must confirm.")
 
 

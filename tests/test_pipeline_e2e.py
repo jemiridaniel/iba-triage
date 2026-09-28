@@ -274,12 +274,13 @@ def test_uncomplicated_malaria_is_treat_and_monitor_with_table_dose(tmp_path: Pa
     assert default.strength == "20/120"
     assert default.weight_band == "35 kg and above"
     assert default.regimen.startswith("4 tablets per dose")
-    assert default.verified is False
+    # Verified against NMEP 4th ed. (May 2020) Table 4-4, p.10 by DJ, 2026-09-28.
+    assert default.verified is True
     alts = {d.strength: d for d in r.doses if not d.is_default}
     assert alts["40/240"].regimen.startswith("2 tablets per dose")
     assert alts["80/480"].regimen.startswith("1 tablet per dose")
-    assert UNVERIFIED_WARNING in r.warnings
-    assert "UNVERIFIED table" in r.referral_note
+    assert UNVERIFIED_WARNING not in r.warnings
+    assert "UNVERIFIED" not in r.referral_note
     assert any("Removed 1 dose mention" in w for w in r.warnings)
     assert {n.text for n in r.dosing_notes} == {AL_SPLITTING_NOTE, AL_ABSORPTION_NOTE}
 
