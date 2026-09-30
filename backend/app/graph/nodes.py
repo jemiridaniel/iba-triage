@@ -34,6 +34,8 @@ from backend.app.rag.queries import (
     suspected_conditions,
 )
 from backend.app.rules.danger_signs import (
+    DEHYDRATION_IMCI_ANCHOR,
+    DEHYDRATION_NCDC_ANCHOR,
     LASSA_CASE_DEF_ANCHOR,
     LASSA_IPC_REMINDER,
     LASSA_TRIAGE_ANCHOR,
@@ -385,6 +387,40 @@ def rules_post(state: TriageState, deps: Deps) -> dict[str, Any]:
             ActionItem(
                 text=LASSA_IPC_REMINDER,
                 citations=[*_anchors(deps, [LASSA_TRIAGE_ANCHOR]), *place],
+                source="rule",
+                evidence=Evidence(status="rule"),
+            ),
+        )
+    if rules.dehydration is not None:
+        dehydration_cites = _anchors(deps, [DEHYDRATION_IMCI_ANCHOR, DEHYDRATION_NCDC_ANCHOR])
+        if not any("dehydration" in d.condition.lower() for d in differential):
+            differential.insert(
+                0,
+                DifferentialItem(
+                    condition="Severe dehydration",
+                    likelihood="high",
+                    reasons=[
+                        Reason(
+                            text=(
+                                "Two or more severe-dehydration signs: "
+                                + ", ".join(rules.dehydration.signs)
+                            ),
+                            evidence=Evidence(status="rule"),
+                        )
+                    ],
+                    check_next=["Start IV rehydration (Plan C) without waiting for referral"],
+                    citations=dehydration_cites,
+                    source="rule",
+                ),
+            )
+        actions.insert(
+            0,
+            ActionItem(
+                text=(
+                    "Severe dehydration: refer urgently for IV rehydration (Plan C). Give "
+                    "frequent sips of ORS on the way if the patient can drink."
+                ),
+                citations=dehydration_cites,
                 source="rule",
                 evidence=Evidence(status="rule"),
             ),

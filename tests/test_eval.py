@@ -24,12 +24,12 @@ CODES = {
 
 
 def test_vignettes_match_spec_mix() -> None:
-    assert len(CASES) == 60 and len({c["id"] for c in CASES}) == 60
+    assert len(CASES) == 61 and len({c["id"] for c in CASES}) == 61
     assert Counter(c["category"] for c in CASES) == {
         "uncomplicated_malaria": 10,
         "severe_malaria": 10,
         "suspected_lassa": 10,
-        "cholera_awd": 6,
+        "cholera_awd": 7,
         "suspected_meningitis": 6,
         "other_febrile": 8,
         "paediatric_danger_signs": 6,

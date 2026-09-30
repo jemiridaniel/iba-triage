@@ -65,6 +65,32 @@ Chart Booklet (2014) general danger signs; WHO Guidelines for Malaria, severe ma
 
 Question: are the additions and the fast-breathing exclusion right for PHC use?
 
+**Severe dehydration (added 2026-09-28, prompted by a live miss):** a Lagos case — "watery
+stool since yesterday, vomiting, no fever, sunken eyes" — returned Treat & monitor with "no
+danger signs detected." We now detect the WHO IMCI "Classify Dehydration" criteria directly:
+two or more of {lethargic or unconscious; sunken eyes; not able to drink or drinking poorly;
+skin pinch goes back very slowly} → Severe dehydration → **Refer now** (Plan C, IV
+rehydration), cited to the WHO IMCI Chart Booklet and the NCDC AWD/Cholera Outbreak
+Guideline (both define the same two-of-four criteria). This fires independently of fever
+status — see `dehydration_assessment()` in
+[backend/app/rules/danger_signs.py](../backend/app/rules/danger_signs.py).
+
+- We could not find "no urine output" as a criterion in either indexed guideline (WHO IMCI or
+  NCDC cholera), despite it being clinically taught alongside the other four signs. It is
+  **not** currently detected — adding it without a source would mean citing a guideline for
+  something it doesn't say. Should we add it anyway on separate clinical grounds, and if so,
+  what should it cite?
+- The one-line reported case itself has only **one** of the four signs (sunken eyes) —
+  "vomiting" and "watery stool" describe the illness, not a dehydration-classification sign —
+  so as worded it does not meet the two-sign threshold and correctly stays Treat & monitor
+  under this rule. The eval vignette (`ch-07`) adds a second explicit sign (skin pinch slow)
+  to test the rule; it is not verbatim the live transcript.
+
+Question: **"A man in his 30s, watery stool since yesterday, vomiting, no fever, sunken
+eyes. Ibà currently returns treat-and-monitor with ORS, because IMCI requires 2 of 4 signs
+and only sunken eyes is present. Is that correct at a PHC with no lab, or should sunken eyes
+plus vomiting in suspected cholera be referred?"**
+
 ## 3. Dose table (Pending: UNVERIFIED stub)
 
 Code: [backend/app/rules/dosing.py](../backend/app/rules/dosing.py). Artemether-lumefantrine
@@ -90,7 +116,7 @@ Code: [backend/app/rules/followup.py](../backend/app/rules/followup.py).
 
 ## 6. Eval vignettes (Pending)
 
-[eval/vignettes.jsonl](../eval/vignettes.jsonl): 60 synthetic cases with gold labels and a
+[eval/vignettes.jsonl](../eval/vignettes.jsonl): 61 synthetic cases with gold labels and a
 guideline rationale each, all `clinician_reviewed: false`. Please review the gold
 `triage_level`, `danger_signs` and `top_differential` for each case; the full eval runs
 only after review. Where a live outbreak signal should change the expected triage, a case

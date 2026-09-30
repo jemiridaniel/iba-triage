@@ -53,6 +53,10 @@ _PATTERNS: dict[DangerSignCode, list[str]] = {
         rf"\b(?:{_CANT}|refus\w*|stopped|no\s+gree|no\s+dey|no\s+wan)\s+(?:to\s+)?"
         r"(?:drink\w*|breast\s*-?\s*feed\w*|suck\w*|feed\w*|take\s+(?:fluids?|water|breast))\b",
         r"\bnot\s+(?:drinking|sucking|breast\s*-?\s*feeding|feeding)\b",
+        # IMCI's own wording for this sign is "not able to drink OR drinking poorly" -- both
+        # halves count as the same criterion (WHO IMCI Chart Booklet, Classify Dehydration).
+        r"\bdrink\w*\s+poorly\b",
+        r"\bpoor\w*\s+(?:oral\s+)?(?:intake|feeding)\b",
     ],
     D.VOMITING_EVERYTHING: [
         r"\b(?:vomit\w*|throw\w*\s+up|throw\w*\s+out)\s+(?:out\s+)?(?:every\s*thing|all|any\s*thing)\b",
@@ -405,6 +409,109 @@ def lassa_suspected(
     return finding.signal if finding else None
 
 
+# --- severe dehydration -------------------------------------------------------------
+#
+# WHO IMCI Chart Booklet, "Classify Dehydration": Severe Dehydration = two or more of
+#   lethargic or unconscious; sunken eyes; not able to drink or drinking poorly; skin pinch
+#   goes back very slowly (>=2 s)                              -> Plan C, refer urgently.
+# NCDC Guidelines for Acute Watery Diarrhoea (Cholera) Outbreak, independently: "Severe
+#   dehydration: two or more of the following signs: lethargy/unconsciousness; sunken eyes;
+#   inability to drink or drinking poorly; loss of skin turgor" -- the same four signs.
+# Two of the four are already standalone IMCI general danger signs here (D.UNABLE_TO_DRINK,
+# D.LETHARGY_UNCONSCIOUS) and already trigger Refer now alone; this rule adds the two that
+# are not otherwise detected (sunken eyes; slow skin pinch) and combines all four, so a
+# patient with e.g. sunken eyes + slow skin pinch is caught even with no single sign that
+# would trigger on its own.
+#
+# Fires regardless of fever: dehydration is a fluid-loss emergency, not a febrile-illness
+# finding, and the fever-path rules must not gate it (see followup.py).
+#
+# "No urine output" is included below because it was asked for and is a recognised clinical
+# sign of severe volume depletion, but -- flagged honestly -- neither WHO IMCI nor the NCDC
+# cholera guideline actually names it among their dehydration criteria (checked against both
+# indexed documents). It is detected and counted, but citations below are to the two
+# documents' shared four-sign definition, not to this fifth sign specifically. See
+# docs/CLINICAL_REVIEW.md.
+
+DEHYDRATION_IMCI_ANCHOR = ("who-imci", "Skin pinch goes back very slowly")
+DEHYDRATION_NCDC_ANCHOR = ("ncdc-cholera", "Severe dehydration: two or more")
+
+_DEHYDRATION_SIGN_LABELS: dict[str, str] = {
+    "unable_to_drink": "not able to drink or drinking poorly",
+    "lethargic": "lethargic or unconsciousness",
+    "sunken_eyes": "sunken eyes",
+    "skin_pinch_slow": "skin pinch goes back slowly",
+    "no_urine": "no urine output",
+}
+_DEHYDRATION_ONLY_PATTERNS: dict[str, list[re.Pattern[str]]] = {
+    "sunken_eyes": [
+        re.compile(p, re.IGNORECASE)
+        for p in (
+            r"\bsunken\s+eyes?\b",
+            r"\beyes?\s+(?:dey\s+|don\s+|is\s+|are\s+|look\w*\s+|appear\w*\s+){0,2}sunk(?:en)?\b",
+        )
+    ],
+    "skin_pinch_slow": [
+        re.compile(p, re.IGNORECASE)
+        for p in (
+            r"\bskin\s*(?:pinch|turgor)\w*[^.;]{0,20}?\bslow\w*",
+            r"\bslow\w*[^.;]{0,20}?\bskin\s*(?:pinch|turgor)\w*",
+            r"\bpoor\s+skin\s+turgor\b",
+            r"\bloss\s+of\s+skin\s+turgor\b",
+        )
+    ],
+    "no_urine": [
+        re.compile(p, re.IGNORECASE)
+        for p in (
+            r"\bno\s+urine\b",
+            r"\banuria\b",
+            r"\bnot\s+(?:pass\w*|urinat\w*)[^.;]{0,20}?\burine\b",
+            r"\bno\s+(?:pass\w*|urinat\w*)\s+(?:of\s+)?urine\b",
+            r"\bnot\s+urinat\w*\b",
+        )
+    ],
+}
+
+
+def _dehydration_text_signs(text: str) -> set[str]:
+    text = ascii_punct(text or "")
+    found: set[str] = set()
+    for key, patterns in _DEHYDRATION_ONLY_PATTERNS.items():
+        for pattern in patterns:
+            match = next(
+                (m for m in pattern.finditer(text) if not _is_negated(text, m.start())), None
+            )
+            if match is not None:
+                found.add(key)
+                break
+    return found
+
+
+@dataclass
+class DehydrationFinding:
+    signs: list[str]  # human-readable labels, in a stable order, for the differential
+    floor: TriageLevel = TriageLevel.REFER_NOW
+
+
+def dehydration_assessment(
+    case: PatientCase, hits: list[DangerSignHit]
+) -> DehydrationFinding | None:
+    """Two or more severe-dehydration signs -> Refer now, independent of fever status."""
+    codes = {h.code for h in hits}
+    present: list[str] = []
+    if D.UNABLE_TO_DRINK in codes:
+        present.append(_DEHYDRATION_SIGN_LABELS["unable_to_drink"])
+    if D.LETHARGY_UNCONSCIOUS in codes:
+        present.append(_DEHYDRATION_SIGN_LABELS["lethargic"])
+    text_signs = _dehydration_text_signs(case.raw_text)
+    for key in ("sunken_eyes", "skin_pinch_slow", "no_urine"):
+        if key in text_signs:
+            present.append(_DEHYDRATION_SIGN_LABELS[key])
+    if len(present) < 2:
+        return None
+    return DehydrationFinding(signs=present)
+
+
 # --- floor ------------------------------------------------------------------
 
 # Wording follows NCDC 2018 §2.1.1 (triage of a suspected case).
@@ -420,6 +527,7 @@ class RuleAssessment:
     floor: TriageLevel | None
     danger_signs: list[DangerSignHit] = field(default_factory=list)
     lassa: LassaFinding | None = None
+    dehydration: DehydrationFinding | None = None
     reasons: list[str] = field(default_factory=list)
     reminders: list[str] = field(default_factory=list)
 
@@ -451,16 +559,31 @@ def assess(
             seen.add(h.code)
 
     lassa = lassa_assessment(case, outbreak_signals or [], hits)
+    dehydration = dehydration_assessment(case, hits)
     reasons = [f"Danger sign: {DANGER_SIGN_LABELS[h.code]}" for h in hits]
     reminders: list[str] = []
     if lassa is not None:
         tier = "active outbreak" if lassa.basis == "live" else "endemic state (baseline)"
         reasons.append(f"Suspected Lassa fever ({tier}: {lassa.signal.state})")
         reminders.append(LASSA_IPC_REMINDER)
+    if dehydration is not None:
+        reasons.append(
+            "Severe dehydration (WHO IMCI + NCDC cholera guideline): two or more of "
+            + ", ".join(dehydration.signs)
+        )
 
-    floor = most_urgent(TriageLevel.REFER_NOW if hits else None, lassa.floor if lassa else None)
+    floor = most_urgent(
+        TriageLevel.REFER_NOW if hits else None,
+        lassa.floor if lassa else None,
+        dehydration.floor if dehydration else None,
+    )
     return RuleAssessment(
-        floor=floor, danger_signs=hits, lassa=lassa, reasons=reasons, reminders=reminders
+        floor=floor,
+        danger_signs=hits,
+        lassa=lassa,
+        dehydration=dehydration,
+        reasons=reasons,
+        reminders=reminders,
     )
 
 

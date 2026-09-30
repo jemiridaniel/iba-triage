@@ -7,10 +7,10 @@
 
 | Config (outbreak) | n | Danger-sign recall | **Under-triage** | Over-triage | Exact triage | Top-3 dx hit | Citation validity | p50 / p95 latency | Cost / case |
 |---|---|---|---|---|---|---|---|---|---|
-| fast-only (live) | 60 | 96.7% (30 signs) | **1.7%** | 28.3% | 70.0% | 98.3% | 100.0% (211) | 36.9 s / 57.4 s | $0.00263 |
-| reason-only (live) | 60 | 100.0% (30 signs) | **0.0%** | 28.3% | 71.7% | 98.3% | 100.0% (304) | 35.1 s / 48.7 s | $0.00814 |
+| fast-only (live) | 61 | 96.7% (30 signs) | **1.6%** | 27.9% | 70.5% | 98.4% | 100.0% (214) | 37.0 s / 60.1 s | $0.00266 |
+| reason-only (live) | 61 | 100.0% (30 signs) | **0.0%** | 27.9% | 72.1% | 98.4% | 100.0% (309) | 35.5 s / 49.5 s | $0.00815 |
 | routed (case) | 10 | 100.0% (4 signs) | **0.0%** | 0.0% | 100.0% | 100.0% | 100.0% (44) | 30.2 s / 69.9 s | $0.00706 |
-| routed (live) | 60 | 96.7% (30 signs) | **1.7%** | 28.3% | 70.0% | 100.0% | 100.0% (279) | 34.5 s / 49.5 s | $0.00746 |
+| routed (live) | 61 | 96.7% (30 signs) | **1.6%** | 27.9% | 70.5% | 100.0% | 100.0% (290) | 34.5 s / 49.4 s | $0.00751 |
 | routed (off) | 10 | 100.0% (1 signs) | **20.0%** | 10.0% | 70.0% | 80.0% | 100.0% (53) | 33.8 s / 50.1 s | $0.00748 |
 
 - **Under-triage** (predicted less urgent than gold) is the headline safety metric.
@@ -54,12 +54,12 @@ The 'with' arm is the **real Tavily search** over trusted public-health domains,
 
 | Config (outbreak) | Cases | Pairs | Supported | Partial | Unsupported |
 |---|---|---|---|---|---|
-| fast-only (live) | 12 | 51 | 76.5% | 7.8% | 15.7% |
-| reason-only (live) | 12 | 61 | 91.8% | 3.3% | 4.9% |
-| routed (live) | 12 | 62 | 85.5% | 4.8% | 9.7% |
+| fast-only (live) | 14 | 57 | 75.4% | 8.8% | 15.8% |
+| reason-only (live) | 14 | 73 | 89.0% | 5.5% | 5.5% |
+| routed (live) | 14 | 80 | 86.2% | 6.2% | 7.5% |
 - unsupported: `who-malaria:0233` for "Uncomplicated malaria: A patient who presents with symptoms of malaria and a positive parasitological test (microscopy o": The passage discusses additional considerations for managing malaria cases, including oral tolerance, antipyretics, anti-emetics, and seizures, but does not define uncomplicated malaria based on symptoms, positive parasitological test, and absence of severe features.
-- unsupported: `ncdc-cholera:0030` for "Cholera: Cholera is suspected in a patient with acute watery diarrhoea and severe dehydration in an endemic area.": The passage discusses cholera assessment and dehydration classification but does not mention that cholera is suspected in a patient with acute watery diarrhoea and severe dehydration in an endemic area.
-- unsupported: `who-imci:0004` for "Place the patient in a separate holding area and institute infection prevention measures.": The passage discusses dehydration classifications and treatments but contains no mention of placing patients in separate holding areas or instituting infection prevention measures.
+- unsupported: `who-malaria:0290` for "Refer the patient urgently to a hospital with capacity for severe malaria treatment and Lassa fever isolation.": The passage details criteria for diagnosing severe malaria and its management but does not mention urgent referral to a hospital with capacity for severe malaria treatment or Lassa fever isolation.
+- unsupported: `who-imci:0027` for "Perform a rapid diagnostic test (RDT) for malaria.": The passage discusses repeating a malaria test under specific conditions (fever persisting after 3 days), but it does not mention performing an initial rapid diagnostic test (RDT) for malaria.
 - partial: `who-malaria:0303` for "Initiate intravenous fluids and monitor vital signs, urine output, and blood glucose every 4 hours": The passage mentions monitoring vital signs, urine output, and blood glucose every 4 hours as part of supportive care for severe malaria, which aligns with the claim, but does not mention initiating intravenous fluids.
 - unsupported: `who-imci:0002` for "Refer the child urgently to hospital with infection prevention measures for suspected Lassa Fever": The passage describes urgent referral for general danger signs but does not mention Lassa Fever or infection prevention measures.
 - unsupported: `who-imci:0027` for "Advise patient to return if fever persists beyond 3 days": The passage advises returning in 3 days only if malaria test is positive, not generally for persistent fever beyond 3 days.

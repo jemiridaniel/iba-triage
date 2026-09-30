@@ -45,7 +45,16 @@ NEXT_TEST_TEXT = (
 
 
 def treat_monitor_advice(case: PatientCase) -> list[tuple[str, list[Anchor]]]:
-    """Advice every green result must carry: review interval, test-before-treat, next test."""
+    """Advice every green result must carry: review interval, test-before-treat, next test.
+
+    All of this is fever/malaria-specific (the IMCI fever follow-up interval; test-before-
+    treat for antimalarials) and must not appear when the case explicitly states no fever --
+    there is no fever to review, and nothing here suggests testing for malaria specifically.
+    `fever_days is None` (unknown, not stated) still gets the usual advice; only an explicit
+    0 suppresses it.
+    """
+    if case.fever_days == 0:
+        return []
     advice = [(REVIEW_TEXT, [REVIEW_ANCHOR])]
     if case.rdt_result == "negative":
         advice.append((NO_ANTIMALARIAL_TEXT, [NEGATIVE_TEST_ANCHOR, TEST_FIRST_ANCHOR]))
