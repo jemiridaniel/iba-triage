@@ -115,8 +115,8 @@ paraphrase in a quote, do not stitch fragments together, never invent a chunk_id
    Example action: {"text": "Keep the patient in a separate holding area", "chunk_id": \
 "ncdc-lassa:0004", "evidence_quote": "Put patient in a holding area and institute infection \
 prevention measures"}
-3. If the rules found danger signs, triage_level must be "refer_now". You may raise the \
-triage level above the rule floor, never lower it.
+3. If the rules found danger signs, triage_level must be "refer_now". Otherwise, assess the \
+case on its own merits -- do not look for or assume any other pre-computed answer.
 4. Weigh active outbreaks (live) and baseline endemicity in the patient's state. If a \
 disease that is active or endemic there fits the presentation, include it in the \
 differential and give its isolation/referral steps. Live signals weigh more than baseline.
@@ -219,10 +219,15 @@ def reason_messages(
         outbreak_text = _signal_groups(outbreak.signals, case.state)
     baseline = outbreak.baseline if outbreak is not None else []
     baseline_text = _baseline_text(baseline)
-    rules = {
-        "danger_signs": [h.label for h in pre.danger_signs],
-        "triage_floor": pre.floor.value if pre.floor else None,
-    }
+    # Deliberately NOT included: the computed rule floor (pre.floor). Showing the model a
+    # pre-computed triage answer caused it to anchor on that value instead of reasoning
+    # independently (la-05's rationale literally restated "Rule floor is refer_24h... therefore
+    # patient should be referred... within 24 hours" instead of assessing the case on its own
+    # merits). The floor is still applied mechanically after reasoning, in rules_post via
+    # apply_floor() -- it can only raise the model's own level, never lower it -- so removing it
+    # here only removes the model's chance to copy a number it was never meant to see. See
+    # docs/FEEDBACK.md.
+    rules = {"danger_signs": [h.label for h in pre.danger_signs]}
     user = (
         f"CASE:\n{case.model_dump_json(exclude_none=True)}\n\n"
         f"RULE FINDINGS:\n{json.dumps(rules)}\n\n"

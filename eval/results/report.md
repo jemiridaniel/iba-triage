@@ -14,8 +14,8 @@
 | fast-only (live) | 61 | 96.7% (30 signs) | **4.9%** | 27.9% | 67.2% | 98.4% | 100.0% (217) | 36.7 s / 60.1 s | $0.0027 |
 | reason-only (live) | 61 | 100.0% (30 signs) | **3.3%** | 27.9% | 68.9% | 98.4% | 100.0% (304) | 34.7 s / 49.5 s | $0.00809 |
 | routed (case) | 10 | 100.0% (4 signs) | **0.0%** | 0.0% | 100.0% | 100.0% | 100.0% (44) | 30.2 s / 69.9 s | $0.00706 |
-| routed (live) | 61 | 96.7% (30 signs) | **3.3%** | 27.9% | 68.9% | 100.0% | 100.0% (286) | 34.5 s / 49.4 s | $0.00751 |
-| routed (off) | 10 | 100.0% (1 signs) | **0.0%** | 10.0% | 90.0% | 100.0% | 100.0% (62) | 30.8 s / 50.1 s | $0.00755 |
+| routed (live) | 61 | 96.7% (30 signs) | **3.3%** | 0.0% | 96.7% | 100.0% | 100.0% (261) | 31.3 s / 47.0 s | $0.00746 |
+| routed (off) | 10 | 100.0% (1 signs) | **0.0%** | 10.0% | 90.0% | 100.0% | 100.0% (44) | 27.1 s / 35.1 s | $0.00728 |
 
 - **Under-triage** (predicted less urgent than gold) is the headline safety metric.
 - Citation validity = model citations that resolved to an indexed guideline chunk or a current outbreak source (deterministic check).
@@ -38,8 +38,8 @@ None.
 
 ### Under-triaged cases: routed (live)
 
-- **pd-03** (paediatric_danger_signs): gold Refer now, got Refer within 24h. Missed danger signs: lethargy_or_unconsciousness. Differential: Malaria, Lassa fever, Possible bacterial infection. Model rationale: "No danger signs are present, but the child is 1 year old with 2 days of fever and nonspecific symptoms (quiet, not playing, sleepy). Given the active Lassa fever outbreak in Enugu, close monitoring and timely referral to"
-- **la-09** (suspected_lassa): gold Refer now, got Refer within 24h. Missed danger signs: none. Differential: Lassa Fever, Cerebrospinal Meningitis, Typhoid Fever. Model rationale: "No danger signs identified; however, the presentation raises suspicion for Lassa fever (fever >48hrs, generalized weakness, no response to antimalarial) and baseline endemicity for cerebrospinal meningitis in Plateau war"
+- **ch-02** (cholera_awd): gold Refer within 24h, got Treat & monitor. Missed danger signs: none. Differential: Cholera, Lassa fever, Other acute watery diarrhea (e.g., viral gastroenteritis). Model rationale: "No danger signs present; patient shows signs of thirst and eager drinking indicating possible dehydration but no severe dehydration or hypotension; manageable at PHC with ORS and close monitoring, with referral if deteri"
+- **pd-03** (paediatric_danger_signs): gold Refer now, got Treat & monitor. Missed danger signs: lethargy_or_unconsciousness. Differential: Lassa fever, Malaria, Bacterial infection. Model rationale: "No danger signs identified; fever duration <3 days; manage at PHC with follow-up and malaria testing."
 
 ### Under-triaged cases: routed (off)
 
@@ -53,7 +53,7 @@ The 'with' arm is the **real Tavily search** over trusted public-health domains,
 | Config | n | | Lassa in top 3 | Refer now | Under-triage |
 |---|---|---|---|---|---|
 | routed | 10 | without live signal | 100.0% | 90.0% | 0.0% |
-| routed | 10 | with live signal | 100.0% | 80.0% | 10.0% |
+| routed | 10 | with live signal | 100.0% | 80.0% | 0.0% |
 
 ## Citation support (LLM-judged)
 
@@ -63,16 +63,16 @@ The 'with' arm is the **real Tavily search** over trusted public-health domains,
 |---|---|---|---|---|---|
 | fast-only (live) | 14 | 57 | 75.4% | 8.8% | 15.8% |
 | reason-only (live) | 14 | 73 | 89.0% | 5.5% | 5.5% |
-| routed (live) | 14 | 80 | 86.2% | 6.2% | 7.5% |
+| routed (live) | 13 | 70 | 87.1% | 2.9% | 8.6% |
 - unsupported: `who-malaria:0233` for "Uncomplicated malaria: A patient who presents with symptoms of malaria and a positive parasitological test (microscopy o": The passage discusses additional considerations for managing malaria cases, including oral tolerance, antipyretics, anti-emetics, and seizures, but does not define uncomplicated malaria based on symptoms, positive parasitological test, and absence of severe features.
 - unsupported: `who-malaria:0290` for "Refer the patient urgently to a hospital with capacity for severe malaria treatment and Lassa fever isolation.": The passage details criteria for diagnosing severe malaria and its management but does not mention urgent referral to a hospital with capacity for severe malaria treatment or Lassa fever isolation.
 - unsupported: `who-imci:0027` for "Perform a rapid diagnostic test (RDT) for malaria.": The passage discusses repeating a malaria test under specific conditions (fever persisting after 3 days), but it does not mention performing an initial rapid diagnostic test (RDT) for malaria.
 - partial: `who-malaria:0303` for "Initiate intravenous fluids and monitor vital signs, urine output, and blood glucose every 4 hours": The passage mentions monitoring vital signs, urine output, and blood glucose every 4 hours as part of supportive care for severe malaria, which aligns with the claim, but does not mention initiating intravenous fluids.
 - unsupported: `who-imci:0002` for "Refer the child urgently to hospital with infection prevention measures for suspected Lassa Fever": The passage describes urgent referral for general danger signs but does not mention Lassa Fever or infection prevention measures.
 - unsupported: `who-imci:0027` for "Advise patient to return if fever persists beyond 3 days": The passage advises returning in 3 days only if malaria test is positive, not generally for persistent fever beyond 3 days.
-- unsupported: `who-malaria:0302` for "Refer patient urgently to higher-level facility": The passage discusses pre-referral treatment recommendations for severe malaria but does not explicitly recommend urgent referral to a higher-level facility.
-- unsupported: `who-imci:0027` for "Perform malaria rapid diagnostic test.": The passage mentions repeating a malaria test under specific conditions but does not support performing a malaria rapid diagnostic test as an initial or standalone action.
-- unsupported: `who-imci:0027` for "Advise patient to return if fever persists beyond 3 days": The passage advises returning in 3 days only if malaria test is positive, not generally for persistent fever beyond 3 days.
+- judge_error: `ncdc-cholera:0014` for "Severe malaria: Inability to drink is listed as a danger sign indicating severe illness": LLMParseError
+- unsupported: `ncdc-cholera:0030` for "Administer oral rehydration solution (ORS) while arranging transfer": The passage describes assessment and treatment plans for dehydration levels but does not mention administering ORS while arranging transfer.
+- unsupported: `who-imci:0005` for "Severe malaria: Vomiting everything is a general danger sign per IMCI guidelines": The passage lists general danger signs such as inability to drink/breastfeed, vomiting everything, convulsions, lethargy/unconsciousness, but does not explicitly state that 'vomiting everything is a general danger sign per IMCI guidelines' in direct support of the claim.
 
 ## Grounding
 

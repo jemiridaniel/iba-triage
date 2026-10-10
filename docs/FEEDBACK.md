@@ -34,6 +34,7 @@ Raw responses are saved in [tests/fixtures/nemotron_responses.json](../tests/fix
 | T1 | Tavily | `published_date` empty on every result, so recency depends on the LLM reading dates out of page text | **High**: recency is a safety property here (worked around) |
 | T3 | Tavily | National sitreps yield signals for other states than the patient's | Low (rules filter by state; prompt and UI now group them) |
 | D1 | Onboarding | Hackathon tenants get AI Studio, not the general Nebius AI Cloud (Compute/IAM) needed for Serverless Endpoints | **High**: blocked the encouraged deploy path |
+| F13 | Nemotron / reasoning | Showing the model a pre-computed deterministic answer in its own context measurably suppresses independent reasoning, even with an explicit "this is only a floor" instruction | **High**: a safety backstop that becomes a ceiling defeats the point of having both a rules layer and a reasoning layer |
 
 ---
 
@@ -301,6 +302,78 @@ altered)"*. 1 of 2 signals dropped on the first live call.
 reasoning off, and that callers must validate. A `response_format` with a URL-typed enum
 constrained to supplied values would remove the class of bug entirely.
 
+## F13. Showing the model its own pre-computed answer suppresses independent reasoning
+
+**Observed.** Our reasoning step (Super, reasoning on) receives a `RULE FINDINGS` JSON block
+containing the deterministic danger signs *and* `triage_floor`: the rule-computed minimum
+triage level, which the system mechanically never allows the final output to go below
+(`apply_floor()`, applied **after** reasoning, regardless of what the model says). The system
+prompt added: *"You may raise the triage level above the rule floor, never lower it."*
+
+For `la-05` (a Lagos patient meeting the NCDC Lassa case definition, in a state with no live
+or baseline signal), the model's rationale read, verbatim:
+
+> "Rule floor is refer_24h per deterministic findings; no danger signs present. Baseline
+> cholera endemic in Lagos peak season but no active outbreak; therefore patient should be
+> referred for facility review within 24 hours."
+
+The correct answer is `refer_now`. The model had every fact needed to reach it (fever >=48 h,
+sore throat, generalised weakness, no response to antimalarial — the full NCDC case
+definition) and, in other configs/runs without the floor in view, did reach it. Here it
+restated the pre-computed `refer_24h` as its conclusion rather than reasoning past it, despite
+the explicit "you may raise it" instruction sitting next to the number.
+
+**Why it matters.** The floor is supposed to be a pure backstop: deterministic rules catch
+what the model might miss, and the model reasons about the case on its own merits, topped up
+(never capped) by the floor afterward. Mechanically that already holds — the system never
+outputs *below* the floor. But handing the model the specific number in its own context
+measurably changed *how it reasoned*, not just what it output on the floor-adjacent cases.
+
+**Reproduction.** Same 61-vignette eval, `routed` config, live outbreak search, before and
+after removing `triage_floor` from the reasoning prompt (keeping `danger_signs`, the only
+other rule-derived field):
+
+| | Under-triage | Over-triage | Exact triage |
+|---|---|---|---|
+| Floor shown (before) | 3.3% (pd-03, la-09) | 27.9% (17 cases) | 68.9% |
+| Floor hidden (after) | 3.3% (pd-03, ch-02) | **0.0%** | **96.7%** |
+
+Two distinct effects, disentangled by hand:
+
+1. **The targeted fix worked exactly as predicted.** la-05 and la-09 — the two cases that
+   showed floor-anchoring language — now reason independently and correctly to `refer_now`,
+   with no mention of a floor or rule in their rationale. Under-triage held flat at 3.3%
+   because an unrelated case (`ch-02`) flipped the other way; `rules.floor` was `None` for
+   `ch-02` in *both* runs, so that miss is ordinary run-to-run variance, not a regression. We
+   did not re-run to chase a better headline number — this is the one honest sample.
+2. **An unexpected, broader effect, partly confounded.** Of the 17 over-triaged-before cases,
+   15 had `live_signal: true` (an active outbreak signal found) before and most had
+   `live_signal: false` after — real-world/cached Tavily results differ run to run, so some of
+   this swing is plain search variance, not the prompt change. But a handful of cases held
+   `live_signal` **constant** between runs and still flipped from over- to correctly-triaged
+   (`ot-07`, `la-06`: no live signal either time; `um-04`, `ot-04`: live signal both times).
+   Their rationale shows the mechanism: before, the model treated "an outbreak is active in
+   this state" as sufficient grounds to escalate on its own; after, it explicitly reasons that
+   outbreak context "warrants infection-precaution measures, but there are no specific \[Lassa\]
+   signs, so the case can be managed at the PHC" (`um-04`, after). With the floor removed, the
+   model got measurably more disciplined about requiring matching clinical findings before
+   letting place-based risk override them — not just on the cases the fix targeted.
+
+**Fix shipped.** Removed `triage_floor` from the `RULE FINDINGS` JSON the reasoning step
+receives (`backend/app/graph/prompts.py::reason_messages`); kept `danger_signs`. Reworded the
+hard rule that referenced "the rule floor" by name, since the model can no longer see it.
+Mechanical safety is unchanged — `apply_floor()` in `rules_post` still enforces the actual
+floor against the model's output regardless of what it said — so the system's worst case is
+identical; only the model's chance to copy an answer it was never meant to see is gone.
+
+**Suggestions.** If you're building a rules-plus-reasoning-model safety system on Nemotron (or
+any reasoning model): don't put a computed floor/minimum value in the prompt context at all,
+even with an instruction that it's only a floor. Enforce it mechanically, afterward, on the
+output — never as context the model reasons from. "You may go above this number" reads, in
+practice, as an invitation to just say the number — and, per the confound-free cases above,
+the effect isn't limited to the exact number shown; it appears to generalise into less
+disciplined reasoning on adjacent judgement calls too.
+
 ---
 
 ## Tavily
@@ -533,6 +606,24 @@ cases: 9/9 again, 0 fallbacks, p50 28.9 s, $0.0683.
 The free instance has no persistent disk: `.cache/spend.json` and the outbreak cache reset on
 every cold start (restart or 15-minute-idle sleep), unlike a Nebius Compute VM's local disk.
 Fine for a demo; worth knowing before treating the spend guard as cumulative over days.
+
+**2026-10-10, removed the rule floor from the reasoning prompt** (see F13; full 61-vignette
+eval, `routed` config, live outbreak search):
+
+| | Floor shown (before) | Floor hidden (after) |
+|---|---|---|
+| Under-triage | 3.3% (pd-03, la-09) | 3.3% (pd-03, ch-02) |
+| Over-triage | 27.9% (17 cases) | **0.0%** |
+| Exact triage | 68.9% | **96.7%** |
+
+The targeted fix held (la-05, la-09 now reason independently to the correct answer, no
+"rule floor" language in the rationale). The over-triage drop is larger than that fix alone
+explains: most of the 17 cases also had a live outbreak signal present before the fix and
+absent after (ordinary Tavily/cache variance, not caused by the prompt change), but a few held
+the live-signal state constant across both runs and still flipped (`ot-07`, `la-06`, `um-04`,
+`ot-04`) — their rationale shows the model being measurably more disciplined about requiring
+matching clinical findings before letting "an outbreak is active here" override them. Kept the
+fix; did not re-run to chase a better number.
 
 ## Still to evaluate
 
