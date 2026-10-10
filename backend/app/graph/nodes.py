@@ -39,6 +39,9 @@ from backend.app.rules.danger_signs import (
     LASSA_CASE_DEF_ANCHOR,
     LASSA_IPC_REMINDER,
     LASSA_TRIAGE_ANCHOR,
+    OLIGURIA_ANCHOR,
+    SUNKEN_EYES_VOMITING_ADVICE_ANCHOR,
+    SUNKEN_EYES_VOMITING_ANCHOR,
     apply_floor,
     assess,
     no_treatment_response,
@@ -363,7 +366,10 @@ def rules_post(state: TriageState, deps: Deps) -> dict[str, Any]:
     if rules.lassa is not None:
         finding = rules.lassa
         sig = finding.signal
-        place = [sig.url] if sig.url else ([sig.citation] if sig.citation else [])
+        if sig is None:
+            place: list[str] = []
+        else:
+            place = [sig.url] if sig.url else ([sig.citation] if sig.citation else [])
         case_def = _anchors(deps, [LASSA_CASE_DEF_ANCHOR])
         if not any("lassa" in d.condition.lower() for d in differential):
             differential.insert(
@@ -421,6 +427,97 @@ def rules_post(state: TriageState, deps: Deps) -> dict[str, Any]:
                     "frequent sips of ORS on the way if the patient can drink."
                 ),
                 citations=dehydration_cites,
+                source="rule",
+                evidence=Evidence(status="rule"),
+            ),
+        )
+    if rules.moderate_dehydration is not None:
+        moderate_cites = _anchors(deps, [DEHYDRATION_NCDC_ANCHOR])
+        if not any("dehydration" in d.condition.lower() for d in differential):
+            differential.insert(
+                0,
+                DifferentialItem(
+                    condition="Moderate dehydration",
+                    likelihood="moderate",
+                    reasons=[
+                        Reason(
+                            text=(
+                                "Two or more moderate-dehydration signs: "
+                                + ", ".join(rules.moderate_dehydration.signs)
+                            ),
+                            evidence=Evidence(status="rule"),
+                        )
+                    ],
+                    check_next=["Start ORS (Plan B) at a treatment centre or unit"],
+                    citations=moderate_cites,
+                    source="rule",
+                ),
+            )
+        actions.insert(
+            0,
+            ActionItem(
+                text=(
+                    "Moderate dehydration: refer within 24h for supervised ORS (Plan B) at a "
+                    "treatment centre or unit, not home ORS alone. Start ORS now."
+                ),
+                citations=moderate_cites,
+                source="rule",
+                evidence=Evidence(status="rule"),
+            ),
+        )
+    if rules.oliguria is not None:
+        oliguria_cites = _anchors(deps, [OLIGURIA_ANCHOR])
+        actions.insert(
+            0,
+            ActionItem(
+                text="Refer now: little or no urine output.",
+                citations=oliguria_cites,
+                source="rule",
+                evidence=Evidence(status="rule"),
+            ),
+        )
+    if rules.sunken_eyes_vomiting is not None:
+        sev_cites = _anchors(
+            deps, [SUNKEN_EYES_VOMITING_ANCHOR, SUNKEN_EYES_VOMITING_ADVICE_ANCHOR]
+        )
+        if not any(
+            c in d.condition.lower() for d in differential for c in ("cholera", "dehydration")
+        ):
+            differential.insert(
+                0,
+                DifferentialItem(
+                    condition="Suspected cholera (sunken eyes with vomiting)",
+                    likelihood="high" if rules.sunken_eyes_vomiting.floor == TriageLevel.REFER_NOW
+                    else "moderate",
+                    reasons=[
+                        Reason(
+                            text="Sunken eyes with vomiting in suspected cholera",
+                            evidence=Evidence(status="rule"),
+                        )
+                    ],
+                    check_next=[
+                        "Start ORS at once; if the patient vomits, wait 10 minutes then "
+                        "continue slowly",
+                    ],
+                    citations=sev_cites,
+                    source="rule",
+                ),
+            )
+        urgency = (
+            "refer now"
+            if rules.sunken_eyes_vomiting.floor == TriageLevel.REFER_NOW
+            else "refer within 24h"
+        )
+        actions.insert(
+            0,
+            ActionItem(
+                text=(
+                    f"Sunken eyes with vomiting, suspected cholera: {urgency}. Start ORS at "
+                    "once; if the patient vomits, wait 10 minutes then continue slowly. "
+                    "Isolate, report to the LGA DSNO, and collect a stool specimen before any "
+                    "antibiotic."
+                ),
+                citations=sev_cites,
                 source="rule",
                 evidence=Evidence(status="rule"),
             ),

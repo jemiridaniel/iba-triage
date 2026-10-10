@@ -287,13 +287,23 @@ def test_lassa_rule_matches_state_loosely() -> None:
 
 
 def test_lassa_rule_needs_outbreak_signal() -> None:
+    # No live/baseline signal at all: the any-state floor (fever >=3 days, failed treatment)
+    # still fires on its own, at Refer within 24h -- not the live-signal Refer now tier.
     result = assess(lassa_case(), [])
-    assert not result.lassa_suspected
-    assert result.floor is None
+    assert result.lassa_suspected
+    assert result.lassa is not None
+    assert result.lassa.basis == "any_state"
+    assert result.lassa.signal is None
+    assert result.floor == TriageLevel.REFER_24H
 
 
 def test_lassa_rule_ignores_other_states() -> None:
-    assert not assess(lassa_case(state="Lagos"), [ONDO_LASSA]).lassa_suspected
+    # The Ondo live signal must not escalate a Lagos case via the "live" tier; the any-state
+    # floor still applies on its own (fever >=3 days, failed treatment -> Refer within 24h).
+    result = assess(lassa_case(state="Lagos"), [ONDO_LASSA])
+    assert result.lassa is not None
+    assert result.lassa.basis == "any_state"
+    assert result.floor == TriageLevel.REFER_24H
 
 
 @pytest.mark.parametrize(
@@ -301,8 +311,38 @@ def test_lassa_rule_ignores_other_states() -> None:
     [{"status": "over"}, {"url": None}, {"report_date": None}, {"disease": "Cholera"}],
 )
 def test_lassa_rule_needs_active_sourced_lassa_signal(signal_overrides: dict) -> None:
+    # An invalid/wrong-disease signal must not count as a live Lassa signal; the any-state
+    # floor (fever >=3 days, failed treatment) still fires on its own, at Refer within 24h.
     signal = ONDO_LASSA.model_copy(update=signal_overrides)
-    assert not assess(lassa_case(), [signal]).lassa_suspected
+    result = assess(lassa_case(), [signal])
+    assert result.lassa is not None
+    assert result.lassa.basis == "any_state"
+    assert result.floor == TriageLevel.REFER_24H
+
+
+def test_lassa_any_state_floor_contact_plus_fever_is_refer_now() -> None:
+    case = lassa_case(
+        state="Lagos",
+        antimalarial_no_response=None,
+        raw_text="fever 1 day, contact with a confirmed Lassa case last week",
+    )
+    result = assess(case, [])
+    assert result.lassa is not None
+    assert result.lassa.basis == "any_state"
+    assert result.floor == TriageLevel.REFER_NOW
+
+
+def test_lassa_any_state_floor_pregnant_with_prolonged_fever_is_refer_now() -> None:
+    case = lassa_case(
+        state="Lagos",
+        antimalarial_no_response=None,
+        pregnant=True,
+        raw_text="adult, fever 4 days",
+    )
+    result = assess(case, [])
+    assert result.lassa is not None
+    assert result.lassa.basis == "any_state"
+    assert result.floor == TriageLevel.REFER_NOW
 
 
 def test_lassa_rule_needs_three_days_of_fever() -> None:
@@ -338,3 +378,121 @@ def test_antimalarial_failure_absent() -> None:
     assert not no_antimalarial_response(
         PatientCase(raw_text="took coartem yesterday, feeling better")
     )
+
+
+# --- sunken eyes + vomiting (2026-10-10, Dr. Amos's review) -----------------------
+
+CHOLERA_HIGH_BURDEN = OutbreakSignal(
+    disease="Cholera", state="Lagos", basis="baseline", tier="high_burden"
+)
+
+
+def test_sunken_eyes_alone_does_not_fire_the_dehydration_rule() -> None:
+    # The exact reported live case, as literally worded: only one of the four severe-
+    # dehydration signs (sunken eyes). The two-of-four rule correctly does not fire.
+    case = PatientCase(
+        raw_text="watery stool since yesterday, vomiting, no fever, sunken eyes", state="Lagos"
+    )
+    result = assess(case)
+    assert result.dehydration is None
+
+
+def test_sunken_eyes_plus_vomiting_fires_refer_24h_with_no_outbreak_context() -> None:
+    case = PatientCase(
+        raw_text="watery stool since yesterday, vomiting, no fever, sunken eyes", state="Lagos"
+    )
+    result = assess(case)
+    assert result.sunken_eyes_vomiting is not None
+    assert not result.sunken_eyes_vomiting.cholera_context
+    assert not result.sunken_eyes_vomiting.vulnerable
+    assert result.floor == TriageLevel.REFER_24H
+
+
+def test_sunken_eyes_plus_vomiting_escalates_in_a_cholera_high_burden_state() -> None:
+    case = PatientCase(
+        raw_text="watery stool since yesterday, vomiting, no fever, sunken eyes", state="Lagos"
+    )
+    result = assess(case, [CHOLERA_HIGH_BURDEN])
+    assert result.sunken_eyes_vomiting is not None
+    assert result.sunken_eyes_vomiting.cholera_context
+    assert result.floor == TriageLevel.REFER_NOW
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [{"pregnant": True, "age_years": 28}, {"age_years": 3}, {"age_years": 65}],
+)
+def test_sunken_eyes_plus_vomiting_escalates_for_vulnerable_patients(overrides: dict) -> None:
+    case = PatientCase(
+        raw_text="watery stool since yesterday, vomiting, no fever, sunken eyes",
+        state="Lagos",
+        **overrides,
+    )
+    result = assess(case)
+    assert result.sunken_eyes_vomiting is not None
+    assert result.sunken_eyes_vomiting.vulnerable
+    assert result.floor == TriageLevel.REFER_NOW
+
+
+def test_sunken_eyes_without_vomiting_does_not_fire_the_new_rule() -> None:
+    case = PatientCase(raw_text="watery stool since yesterday, no fever, sunken eyes")
+    assert assess(case).sunken_eyes_vomiting is None
+
+
+def test_dehydration_rule_still_wins_over_sunken_eyes_vomiting_when_both_apply() -> None:
+    # Two-of-four already fires (sunken eyes + slow skin pinch): the sunken-eyes-plus-vomiting
+    # rule should not also add a separate, redundant differential/floor.
+    case = PatientCase(
+        raw_text="vomiting, no fever, sunken eyes, skin pinch goes back slowly", state="Lagos"
+    )
+    result = assess(case)
+    assert result.dehydration is not None
+    assert result.sunken_eyes_vomiting is None
+    assert result.floor == TriageLevel.REFER_NOW
+
+
+# --- moderate dehydration (2026-10-10, Dr. Amos's review) -------------------------
+
+
+def test_two_moderate_signs_fire_refer_24h() -> None:
+    case = PatientCase(
+        raw_text="many watery stools since yesterday, restless, thirsty and drinking eagerly"
+    )
+    result = assess(case)
+    assert result.moderate_dehydration is not None
+    assert result.floor == TriageLevel.REFER_24H
+
+
+def test_one_moderate_sign_does_not_fire() -> None:
+    case = PatientCase(raw_text="many watery stools since yesterday, restless")
+    assert assess(case).moderate_dehydration is None
+
+
+def test_moderate_dehydration_does_not_fire_when_severe_already_does() -> None:
+    case = PatientCase(
+        raw_text="restless, thirsty, sunken eyes, skin pinch goes back slowly, unable to drink"
+    )
+    result = assess(case)
+    assert result.dehydration is not None
+    assert result.moderate_dehydration is None
+    assert result.floor == TriageLevel.REFER_NOW
+
+
+# --- oliguria / no urine output (2026-10-10, Dr. Amos's review) -------------------
+
+
+def test_no_urine_output_is_an_independent_refer_now_sign() -> None:
+    case = PatientCase(raw_text="watery stool since yesterday, passing no urine")
+    result = assess(case)
+    assert result.oliguria is not None
+    assert result.floor == TriageLevel.REFER_NOW
+
+
+def test_no_urine_output_alone_no_longer_counts_toward_the_two_of_four() -> None:
+    # Sunken eyes + no urine output used to satisfy the old five-sign count; "no urine output"
+    # is now independent (see oliguria_assessment) and must not also feed the dehydration rule.
+    case = PatientCase(raw_text="sunken eyes, passing no urine, no fever")
+    result = assess(case)
+    assert result.dehydration is None
+    assert result.oliguria is not None
+    assert result.floor == TriageLevel.REFER_NOW  # from oliguria alone, not from dehydration

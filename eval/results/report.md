@@ -1,17 +1,21 @@
 # Ibà eval report
 
-> Synthetic vignettes; gold labels **not yet clinician-reviewed**. Treat these numbers as
-> a development check, not a clinical validation.
+> Synthetic vignettes. 60 of 61 gold labels **clinician-reviewed** by Dr. Oluba O.
+> Amos, PharmD, 2026-10-10 (see docs/CLINICAL_REVIEW.md and
+> docs/review/CLINICAL_REVIEW_completed.pdf). `ch-07` (added 2026-09-28, after his
+> review had already started) is not yet reviewed under its current wording. No gold
+> triage level changed as a result of the review; see docs/CLINICAL_REVIEW.md for the
+> wording/differential amendments and the safety fixes applied since.
 
 ## Metrics
 
 | Config (outbreak) | n | Danger-sign recall | **Under-triage** | Over-triage | Exact triage | Top-3 dx hit | Citation validity | p50 / p95 latency | Cost / case |
 |---|---|---|---|---|---|---|---|---|---|
-| fast-only (live) | 61 | 96.7% (30 signs) | **1.6%** | 27.9% | 70.5% | 98.4% | 100.0% (214) | 37.0 s / 60.1 s | $0.00266 |
-| reason-only (live) | 61 | 100.0% (30 signs) | **0.0%** | 27.9% | 72.1% | 98.4% | 100.0% (309) | 35.5 s / 49.5 s | $0.00815 |
+| fast-only (live) | 61 | 96.7% (30 signs) | **4.9%** | 27.9% | 67.2% | 98.4% | 100.0% (217) | 36.7 s / 60.1 s | $0.0027 |
+| reason-only (live) | 61 | 100.0% (30 signs) | **3.3%** | 27.9% | 68.9% | 98.4% | 100.0% (304) | 34.7 s / 49.5 s | $0.00809 |
 | routed (case) | 10 | 100.0% (4 signs) | **0.0%** | 0.0% | 100.0% | 100.0% | 100.0% (44) | 30.2 s / 69.9 s | $0.00706 |
-| routed (live) | 61 | 96.7% (30 signs) | **1.6%** | 27.9% | 70.5% | 100.0% | 100.0% (290) | 34.5 s / 49.4 s | $0.00751 |
-| routed (off) | 10 | 100.0% (1 signs) | **20.0%** | 10.0% | 70.0% | 80.0% | 100.0% (53) | 33.8 s / 50.1 s | $0.00748 |
+| routed (live) | 61 | 96.7% (30 signs) | **3.3%** | 27.9% | 68.9% | 100.0% | 100.0% (286) | 34.5 s / 49.4 s | $0.00751 |
+| routed (off) | 10 | 100.0% (1 signs) | **0.0%** | 10.0% | 90.0% | 100.0% | 100.0% (62) | 30.8 s / 50.1 s | $0.00755 |
 
 - **Under-triage** (predicted less urgent than gold) is the headline safety metric.
 - Citation validity = model citations that resolved to an indexed guideline chunk or a current outbreak source (deterministic check).
@@ -20,10 +24,13 @@
 ### Under-triaged cases: fast-only (live)
 
 - **pd-03** (paediatric_danger_signs): gold Refer now, got Refer within 24h. Missed danger signs: lethargy_or_unconsciousness. Differential: Lassa fever, Malaria (uncomplicated), Bacterial fever (e.g., typhoid). Model rationale: "Active Lassa fever outbreak in Enugu state; patient febrile for 2 days with no danger signs; requires isolation and urgent evaluation at a higher facility."
+- **la-05** (suspected_lassa): gold Refer now, got Refer within 24h. Missed danger signs: none. Differential: Lassa fever, Cholera, Other viral febrile illness (e.g., influenza, COVID-19). Model rationale: "Rule floor is refer_24h per deterministic findings; no danger signs present. Baseline cholera endemic in Lagos peak season but no active outbreak; therefore patient should be referred for facility review within 24 hours."
+- **la-09** (suspected_lassa): gold Refer now, got Refer within 24h. Missed danger signs: none. Differential: Lassa Fever, Typhoid Fever, Cerebrospinal Meningitis. Model rationale: "Patient is a 45-year-old with 5 days of fever, RDT-negative malaria, no response to antimalarials, and generalized body weakness. No danger signs are present. Lassa fever is suspected based on lack of antimalarial respon"
 
 ### Under-triaged cases: reason-only (live)
 
-None.
+- **la-05** (suspected_lassa): gold Refer now, got Refer within 24h. Missed danger signs: none. Differential: Lassa fever, Acute bacterial pharyngitis/tonsillitis, Malaria (possible false-negative RDT). Model rationale: "Patient has fever for 5 days with sore throat and body weakness, negative malaria RDT, no response to antimalarial, no danger signs; Lagos is a cholera-endemic area and the presentation fits viral haemorrhagic fever scre"
+- **la-09** (suspected_lassa): gold Refer now, got Refer within 24h. Missed danger signs: none. Differential: Lassa Fever, Cerebrospinal Meningitis, Typhoid Fever. Model rationale: "No danger signs identified; however, the presentation raises suspicion for Lassa fever (fever >48hrs, generalized weakness, no response to antimalarial) and baseline endemicity for cerebrospinal meningitis in Plateau war"
 
 ### Under-triaged cases: routed (case)
 
@@ -32,21 +39,21 @@ None.
 ### Under-triaged cases: routed (live)
 
 - **pd-03** (paediatric_danger_signs): gold Refer now, got Refer within 24h. Missed danger signs: lethargy_or_unconsciousness. Differential: Malaria, Lassa fever, Possible bacterial infection. Model rationale: "No danger signs are present, but the child is 1 year old with 2 days of fever and nonspecific symptoms (quiet, not playing, sleepy). Given the active Lassa fever outbreak in Enugu, close monitoring and timely referral to"
+- **la-09** (suspected_lassa): gold Refer now, got Refer within 24h. Missed danger signs: none. Differential: Lassa Fever, Cerebrospinal Meningitis, Typhoid Fever. Model rationale: "No danger signs identified; however, the presentation raises suspicion for Lassa fever (fever >48hrs, generalized weakness, no response to antimalarial) and baseline endemicity for cerebrospinal meningitis in Plateau war"
 
 ### Under-triaged cases: routed (off)
 
-- **la-05** (suspected_lassa): gold Refer now, got Treat & monitor. Missed danger signs: none. Differential: Bacterial tonsillitis/pharyngitis, Viral upper respiratory infection, Typhoid fever. Model rationale: "No danger signs present, fever duration less than 7 days, malaria test negative and no response to antimalarial suggests another cause manageable at primary health centre with reassessment and symptomatic care."
-- **la-09** (suspected_lassa): gold Refer now, got Treat & monitor. Missed danger signs: none. Differential: Bacterial infection (e.g., typhoid), Viral illness (e.g., influenza), Persistent malaria (low parasitemia or resistance). Model rationale: "No danger signs identified, fever duration less than 7 days, malaria test negative and no response to antimalarial; manage at primary health centre with reassessment, repeat testing, and advice to return if worsening."
+None.
 
 ## Outbreak lift (suspected-Lassa cases)
 
 Same cases run with live outbreak search off (static baseline only) and with it on.
-The 'with' arm is the **real Tavily search** over trusted public-health domains, cached per state per day. A live Lassa signal for the patient's own state was found for 9 of the 10 cases (la-01, la-02, la-03, la-04, la-05, la-07, la-08, la-09, la-10); the rest fall back to static endemicity, which is why the lift is smaller than the mock run suggested.
+The 'with' arm is the **real Tavily search** over trusted public-health domains, cached per state per day. A live Lassa signal for the patient's own state was found for 7 of the 10 cases (la-01, la-02, la-03, la-04, la-07, la-08, la-10); the rest fall back to static endemicity, which is why the lift is smaller than the mock run suggested.
 
 | Config | n | | Lassa in top 3 | Refer now | Under-triage |
 |---|---|---|---|---|---|
-| routed | 10 | without live signal | 80.0% | 70.0% | 20.0% |
-| routed | 10 | with live signal | 100.0% | 90.0% | 0.0% |
+| routed | 10 | without live signal | 100.0% | 90.0% | 0.0% |
+| routed | 10 | with live signal | 100.0% | 80.0% | 10.0% |
 
 ## Citation support (LLM-judged)
 

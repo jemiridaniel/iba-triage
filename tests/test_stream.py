@@ -48,7 +48,11 @@ def test_stream_emits_event_per_node_then_final(client_for) -> None:
     assert set(names[2:4]) == {"outbreak", "embed_queries"}  # parallel
     assert names[4:] == ["retrieve", "reason", "rules_post", "compose", "final"]
     data = dict(events)
-    assert data["rules_pre"]["floor"] is None
+    # Before the live outbreak signal arrives, the static baseline alone doesn't cover this
+    # state in the test fixtures, but the any-state floor (full case definition, RDT-negative,
+    # added 2026-10-10) still gives a provisional Refer within 24h -- rules_post below then
+    # escalates to Refer now once the live Lassa signal for Ondo comes back.
+    assert data["rules_pre"]["floor"] == "refer_24h"
     assert data["outbreak"]["outbreak"]["signals"][0]["disease"] == "Lassa fever"
     assert data["rules_post"]["triage_level"] == "refer_now"  # card before compose finishes
     assert data["final"]["status"] == "complete"

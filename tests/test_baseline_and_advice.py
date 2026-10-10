@@ -102,9 +102,16 @@ def test_baseline_without_features_is_none() -> None:
     assert lassa_assessment(case, baseline_ondo(), []) is None
 
 
-def test_non_endemic_state_has_no_baseline_tier() -> None:
+def test_non_endemic_state_has_no_baseline_tier_but_gets_the_any_state_floor() -> None:
+    # Lagos is not in the Lassa baseline at all (not even "reported"): the case-definition-plus
+    # -failed-treatment any-state floor (added 2026-10-10, Dr. Amos's review) still applies, at
+    # Refer within 24h -- the baseline/live tiers above this one are what's unavailable here.
     case = PatientCase(fever_days=5, state="Lagos", raw_text=UNRESPONSIVE)
-    assert lassa_assessment(case, ENDEMICITY.for_state("Lagos", TODAY), []) is None
+    finding = lassa_assessment(case, ENDEMICITY.for_state("Lagos", TODAY), [])
+    assert finding is not None
+    assert finding.basis == "any_state"
+    assert finding.floor == TriageLevel.REFER_24H
+    assert finding.signal is None
 
 
 def test_antibiotic_failure_counts() -> None:
@@ -325,8 +332,9 @@ def test_no_treatment_question_when_known_or_short(fields: dict) -> None:
 
 
 def test_green_rdt_negative_advice() -> None:
+    # 2-day review interval (NMEP), not the WHO IMCI 3-day one -- Dr. Amos's review, 2026-10-10.
     texts = [t for t, _ in treat_monitor_advice(PatientCase(rdt_result="negative"))]
-    assert texts[0] == REVIEW_TEXT and "3 days" in REVIEW_TEXT
+    assert texts[0] == REVIEW_TEXT and "2 days" in REVIEW_TEXT
     assert NO_ANTIMALARIAL_TEXT in texts
     assert any("typhoid" in t for t in texts)
 

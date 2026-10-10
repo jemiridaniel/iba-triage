@@ -113,6 +113,13 @@ _PATTERNS: dict[DangerSignCode, list[str]] = {
         r"\bgasp\w*",
         r"\bnasal\s+flar\w*",
         r"\brespiratory\s+distress\b",
+        # "deep" is the anchor word here -- "fast breathing" or "breathing fast" alone, with no
+        # "deep" and no other sign, does NOT match this pattern (or any other one in this list).
+        # This is intentional: IMCI classifies fast breathing alone (child 2-59 months) as
+        # pneumonia, not a general danger sign (see docs/CLINICAL_REVIEW.md §2 and
+        # docs/review/clinical-logic-review.docx §1). Verified against this exact pattern,
+        # 2026-10-10 -- Dr. Amos's review asked whether the phrase list and the stated
+        # exclusion policy were actually consistent; they are.
         r"\bdeep\s+(?:and\s+)?(?:rapid\s+|fast\s+)?breath\w*",
         rf"\b{_CANT}\s+(?:to\s+)?breath\w*",
         r"\bbreath\s+dey\s+cut\b",
@@ -232,6 +239,18 @@ _LASSA_SYMPTOMS: dict[str, str] = {
 }
 _LASSA_SYMPTOM_RES = {k: re.compile(v, re.IGNORECASE) for k, v in _LASSA_SYMPTOMS.items()}
 
+
+def _has_vomiting(text: str) -> bool:
+    """Generic vomiting mention (any severity), negation-aware. Reused by the sunken-eyes-plus-
+
+    vomiting cholera rule below -- distinct from D.VOMITING_EVERYTHING, which requires the
+    stricter "vomiting everything" phrasing and is already an independent danger sign.
+    """
+    text = ascii_punct(text or "")
+    pattern = _LASSA_SYMPTOM_RES["vomiting"]
+    return any(not _is_negated(text, m.start()) for m in pattern.finditer(text))
+
+
 _TREATMENT_WORDS = (
     r"(?:anti-?malari\w*|coartem|artemether\w*|lumefantrine|(?-i:ACTs?)|amatem|lonart|"
     r"malaria\s+(?:drugs?|medicine|treatment|injection)|antibiotic\w*|amoxic\w*|amoxil|"
@@ -341,8 +360,8 @@ def endemic_baseline(
 
 @dataclass
 class LassaFinding:
-    basis: str  # "live" (active outbreak signal) or "baseline" (endemic state)
-    signal: OutbreakSignal
+    basis: str  # "live" (active outbreak signal), "baseline" (endemic state), or "any_state"
+    signal: OutbreakSignal | None  # None for "any_state" -- no local outbreak data backs it
     floor: TriageLevel
     criteria: list[str]  # human-readable reasons, for the differential and trace
 
@@ -389,15 +408,61 @@ def lassa_assessment(
         return None
 
     base = endemic_baseline(signals, case.state, "lassa")
-    if base is None:
+    if base is not None:
+        season = " (peak season)" if base.in_season else ""
+        place = f"{base.state} is a Lassa-endemic state{season} (baseline, no live data)"
+        if symptoms or bleeding:
+            return LassaFinding("baseline", base, TriageLevel.REFER_NOW, [*criteria, place])
+        if (case.fever_days or 0) >= 3 and (no_response or contact):
+            criteria.append("Partial features only: no listed symptom of the NCDC case definition")
+            return LassaFinding("baseline", base, TriageLevel.REFER_24H, [*criteria, place])
         return None
-    season = " (peak season)" if base.in_season else ""
-    place = f"{base.state} is a Lassa-endemic state{season} (baseline, no live data)"
-    if symptoms or bleeding:
-        return LassaFinding("baseline", base, TriageLevel.REFER_NOW, [*criteria, place])
+
+    return _lassa_any_state_floor(case, symptoms, no_response, contact, criteria)
+
+
+def _lassa_any_state_floor(
+    case: PatientCase,
+    symptoms: list[str],
+    no_response: bool,
+    contact: bool,
+    criteria: list[str],
+) -> LassaFinding | None:
+    """Minimum Lassa floor for a state with no live signal and no high-burden baseline match.
+
+    Clinical review (Dr. Amos, 2026-10-10), applied close to his exact wording: "reported" or
+    unlisted states previously got no escalation at all from this rule -- not even Refer within
+    24h -- so a textbook Lassa case (full case definition met, failed treatment) in, say, Lagos
+    or Kogi had no deterministic backstop if the AI's own reasoning also missed it. This does
+    not depend on the baseline list: it applies in any state.
+
+    - contact (with a case or rodents) plus any stated fever -> Refer now.
+    - pregnant with fever >= 3 days -> Refer now.
+    - full case definition met, with RDT negative or failed treatment -> AT LEAST Refer
+      within 24h (not automatically Refer now: there is no local outbreak evidence raising the
+      prior the way a live signal or a high-burden state would).
+    - partial features only (fever >= 3 days, no listed symptom, but failed treatment or
+      contact) -> Refer within 24h, mirroring the existing high-burden "partial" tier above.
+    """
+    fever_known = case.fever_days is not None
+    pregnant_prolonged = bool(case.pregnant) and (case.fever_days or 0) >= 3
+    rdt_negative = case.rdt_result == "negative"
+
+    if contact and fever_known:
+        criteria.append("No local Lassa outbreak data, but possible contact plus fever")
+        return LassaFinding("any_state", None, TriageLevel.REFER_NOW, criteria)
+    if pregnant_prolonged:
+        criteria.append("No local Lassa outbreak data, but pregnant with fever >= 3 days")
+        return LassaFinding("any_state", None, TriageLevel.REFER_NOW, criteria)
+    if symptoms and (rdt_negative or no_response):
+        criteria.append(
+            "No local Lassa outbreak data, but case definition met with RDT-negative or "
+            "failed treatment (any-state floor)"
+        )
+        return LassaFinding("any_state", None, TriageLevel.REFER_24H, criteria)
     if (case.fever_days or 0) >= 3 and (no_response or contact):
-        criteria.append("Partial features only: no listed symptom of the NCDC case definition")
-        return LassaFinding("baseline", base, TriageLevel.REFER_24H, [*criteria, place])
+        criteria.append("Partial features only, no local Lassa outbreak data (any-state floor)")
+        return LassaFinding("any_state", None, TriageLevel.REFER_24H, criteria)
     return None
 
 
@@ -426,12 +491,16 @@ def lassa_suspected(
 # Fires regardless of fever: dehydration is a fluid-loss emergency, not a febrile-illness
 # finding, and the fever-path rules must not gate it (see followup.py).
 #
-# "No urine output" is included below because it was asked for and is a recognised clinical
-# sign of severe volume depletion, but -- flagged honestly -- neither WHO IMCI nor the NCDC
-# cholera guideline actually names it among their dehydration criteria (checked against both
-# indexed documents). It is detected and counted, but citations below are to the two
-# documents' shared four-sign definition, not to this fifth sign specifically. See
-# docs/CLINICAL_REVIEW.md.
+# Clinical review (Dr. Amos, 2026-10-10): "no urine output" is not named by either WHO IMCI
+# or the NCDC cholera guideline as one of the four dehydration-classification signs, so
+# counting it in the two-of-four total would mean citing a guideline for something it doesn't
+# say. It is now its own independent Refer-now sign instead (see `oliguria_assessment` below),
+# not part of this count.
+#
+# Same review: the two-of-four rule alone does not catch "sunken eyes + vomiting" with no
+# second dehydration-classification sign (the original live miss) -- see
+# `sunken_eyes_vomiting_assessment` below, and a "two or more moderate signs" floor -- see
+# `moderate_dehydration_assessment` below. Both are additional, independent floors.
 
 DEHYDRATION_IMCI_ANCHOR = ("who-imci", "Skin pinch goes back very slowly")
 DEHYDRATION_NCDC_ANCHOR = ("ncdc-cholera", "Severe dehydration: two or more")
@@ -496,7 +565,10 @@ class DehydrationFinding:
 def dehydration_assessment(
     case: PatientCase, hits: list[DangerSignHit]
 ) -> DehydrationFinding | None:
-    """Two or more severe-dehydration signs -> Refer now, independent of fever status."""
+    """Two or more severe-dehydration signs -> Refer now, independent of fever status.
+
+    "No urine output" is deliberately not counted here -- see `oliguria_assessment`.
+    """
     codes = {h.code for h in hits}
     present: list[str] = []
     if D.UNABLE_TO_DRINK in codes:
@@ -504,12 +576,157 @@ def dehydration_assessment(
     if D.LETHARGY_UNCONSCIOUS in codes:
         present.append(_DEHYDRATION_SIGN_LABELS["lethargic"])
     text_signs = _dehydration_text_signs(case.raw_text)
-    for key in ("sunken_eyes", "skin_pinch_slow", "no_urine"):
+    for key in ("sunken_eyes", "skin_pinch_slow"):
         if key in text_signs:
             present.append(_DEHYDRATION_SIGN_LABELS[key])
     if len(present) < 2:
         return None
     return DehydrationFinding(signs=present)
+
+
+# --- oliguria (no urine output) -- independent sign, not part of the two-of-four count -----
+#
+# Clinical review (Dr. Amos, 2026-10-10): make this its own Refer-now sign rather than a fifth
+# dehydration-count sign, since no indexed guideline names it as a dehydration criterion. The
+# closest resolvable citation is WHO's severe-malaria "renal impairment" criterion (creatinine
+# / urea thresholds) -- a related but not identical clinical concept (lab values, not urine
+# volume), cited honestly as "related criterion", not as a direct match.
+
+OLIGURIA_ANCHOR = ("who-malaria", "Renal impairment: Plasma or serum creatinine")
+
+
+@dataclass
+class OliguriaFinding:
+    floor: TriageLevel = TriageLevel.REFER_NOW
+
+
+def oliguria_assessment(case: PatientCase) -> OliguriaFinding | None:
+    """No/very little urine output -> Refer now on its own, independent of fever status."""
+    if "no_urine" in _dehydration_text_signs(case.raw_text):
+        return OliguriaFinding()
+    return None
+
+
+# --- moderate dehydration -- two-or-more floor, Refer within 24h ---------------------------
+#
+# Clinical review (Dr. Amos, 2026-10-10): NCDC's own dehydration chart (Table 6.2) has a
+# moderate tier -- two or more of restless/irritable, sunken eyes, dry mouth, drinks eagerly,
+# skin pinch goes back slowly, rapid pulse -- which NCDC and the IDSR both say needs a
+# treatment centre or unit (Plan B), not home ORS alone. This rule only covers the subset of
+# those signs distinguishable by text from the severe tier's wording (restless/irritable,
+# drinks eagerly/thirsty, dry mouth, plus sunken eyes shared with the severe tier); "skin pinch
+# goes back slowly" vs "very slowly" and pulse rate are not reliably distinguishable from free
+# text and are not detected here.
+
+_MODERATE_SIGN_LABELS: dict[str, str] = {
+    "restless": "restless or irritable",
+    "drinks_eagerly": "drinking eagerly / very thirsty",
+    "dry_mouth": "dry mouth",
+    "sunken_eyes": "sunken eyes",
+}
+_MODERATE_ONLY_PATTERNS: dict[str, list[re.Pattern[str]]] = {
+    "restless": [
+        re.compile(p, re.IGNORECASE) for p in (r"\brestless\w*\b", r"\birritab\w*\b")
+    ],
+    "drinks_eagerly": [
+        re.compile(p, re.IGNORECASE)
+        for p in (
+            r"\bdrink\w*\s+eager\w*\b",
+            r"\bvery\s+thirsty\b",
+            r"\bthirsty\b",
+        )
+    ],
+    "dry_mouth": [
+        re.compile(p, re.IGNORECASE)
+        for p in (r"\bdry\s+mouth\b", r"\bdry\s+tongue\b", r"\bmouth\s+(?:and\s+tongue\s+)?dry\b")
+    ],
+}
+
+
+def _moderate_text_signs(text: str) -> set[str]:
+    text = ascii_punct(text or "")
+    found: set[str] = set()
+    for key, patterns in _MODERATE_ONLY_PATTERNS.items():
+        for pattern in patterns:
+            match = next(
+                (m for m in pattern.finditer(text) if not _is_negated(text, m.start())), None
+            )
+            if match is not None:
+                found.add(key)
+                break
+    return found
+
+
+@dataclass
+class ModerateDehydrationFinding:
+    signs: list[str]
+    floor: TriageLevel = TriageLevel.REFER_24H
+
+
+def moderate_dehydration_assessment(case: PatientCase) -> ModerateDehydrationFinding | None:
+    """Two or more moderate-dehydration signs -> Refer within 24h (NCDC Plan B needs a
+
+    treatment centre or unit, not home ORS alone), independent of fever status.
+    """
+    present: list[str] = []
+    moderate_signs = _moderate_text_signs(case.raw_text)
+    if "sunken_eyes" in _dehydration_text_signs(case.raw_text):
+        present.append(_MODERATE_SIGN_LABELS["sunken_eyes"])
+    for key in ("restless", "drinks_eagerly", "dry_mouth"):
+        if key in moderate_signs:
+            present.append(_MODERATE_SIGN_LABELS[key])
+    if len(present) < 2:
+        return None
+    return ModerateDehydrationFinding(signs=present)
+
+
+# --- sunken eyes + vomiting (suspected cholera) ---------------------------------------------
+#
+# Clinical review (Dr. Amos, 2026-10-10): the exact live case that prompted the two-of-four
+# rule above (watery stool, vomiting, no fever, sunken eyes) has only ONE of the four counted
+# signs (sunken eyes; vomiting is not one of the four), so that rule alone does not fix it.
+# NCDC's own guide (p.61): "If at any time... frequent, severe vomiting occurs... shift
+# immediately to Treatment Plan C"; a PHC with no lab and no IV fluids cannot deliver Plan C,
+# so this combination is referred rather than treated with oral ORS alone.
+#
+# Tier: Refer now if the patient is in a cholera-prone area (endemicity high_burden) or there
+# is a live cholera signal in their state, OR the patient is in a vulnerable group (pregnant,
+# a child under 5, or 60 or older -- "comorbid" is not checkable from free text and is not
+# applied). Refer within 24h otherwise. This does not depend on the baseline list for its
+# *minimum* tier -- it fires in any state -- only for whether it escalates further to Refer
+# now on area grounds.
+
+SUNKEN_EYES_VOMITING_ANCHOR = ("ncdc-cholera", "if the patient vomits, wait 10 minutes")
+SUNKEN_EYES_VOMITING_ADVICE_ANCHOR = ("ncdc-cholera", "stool specimen")
+
+_ELDERLY_AGE_YEARS = 60
+_YOUNG_CHILD_AGE_YEARS = 5
+
+
+@dataclass
+class SunkenEyesVomitingFinding:
+    floor: TriageLevel
+    vulnerable: bool
+    cholera_context: bool
+
+
+def sunken_eyes_vomiting_assessment(
+    case: PatientCase, signals: list[OutbreakSignal] | None = None
+) -> SunkenEyesVomitingFinding | None:
+    text = case.raw_text or ""
+    if "sunken_eyes" not in _dehydration_text_signs(text) or not _has_vomiting(text):
+        return None
+    vulnerable = bool(case.pregnant) or (
+        case.age_years is not None
+        and (case.age_years < _YOUNG_CHILD_AGE_YEARS or case.age_years >= _ELDERLY_AGE_YEARS)
+    )
+    cholera_context = active_outbreak(signals or [], case.state, "cholera") is not None or (
+        endemic_baseline(signals or [], case.state, "cholera") is not None
+    )
+    floor = TriageLevel.REFER_NOW if (vulnerable or cholera_context) else TriageLevel.REFER_24H
+    return SunkenEyesVomitingFinding(
+        floor=floor, vulnerable=vulnerable, cholera_context=cholera_context
+    )
 
 
 # --- floor ------------------------------------------------------------------
@@ -528,6 +745,9 @@ class RuleAssessment:
     danger_signs: list[DangerSignHit] = field(default_factory=list)
     lassa: LassaFinding | None = None
     dehydration: DehydrationFinding | None = None
+    moderate_dehydration: ModerateDehydrationFinding | None = None
+    oliguria: OliguriaFinding | None = None
+    sunken_eyes_vomiting: SunkenEyesVomitingFinding | None = None
     reasons: list[str] = field(default_factory=list)
     reminders: list[str] = field(default_factory=list)
 
@@ -560,28 +780,61 @@ def assess(
 
     lassa = lassa_assessment(case, outbreak_signals or [], hits)
     dehydration = dehydration_assessment(case, hits)
+    moderate_dehydration = None if dehydration else moderate_dehydration_assessment(case)
+    oliguria = oliguria_assessment(case)
+    sunken_eyes_vomiting = (
+        None if dehydration else sunken_eyes_vomiting_assessment(case, outbreak_signals)
+    )
     reasons = [f"Danger sign: {DANGER_SIGN_LABELS[h.code]}" for h in hits]
     reminders: list[str] = []
     if lassa is not None:
-        tier = "active outbreak" if lassa.basis == "live" else "endemic state (baseline)"
-        reasons.append(f"Suspected Lassa fever ({tier}: {lassa.signal.state})")
+        if lassa.basis == "live":
+            tier = "active outbreak"
+        elif lassa.basis == "baseline":
+            tier = "endemic state (baseline)"
+        else:
+            tier = "any-state floor, no local outbreak data"
+        place = lassa.signal.state if lassa.signal else (case.state or "state not given")
+        reasons.append(f"Suspected Lassa fever ({tier}: {place})")
         reminders.append(LASSA_IPC_REMINDER)
     if dehydration is not None:
         reasons.append(
             "Severe dehydration (WHO IMCI + NCDC cholera guideline): two or more of "
             + ", ".join(dehydration.signs)
         )
+    if moderate_dehydration is not None:
+        reasons.append(
+            "Moderate dehydration (NCDC Table 6.2): two or more of "
+            + ", ".join(moderate_dehydration.signs)
+        )
+    if oliguria is not None:
+        reasons.append("No urine output (little or no urine passed)")
+    if sunken_eyes_vomiting is not None:
+        context = (
+            "cholera-prone area/active outbreak"
+            if sunken_eyes_vomiting.cholera_context
+            else "vulnerable patient"
+            if sunken_eyes_vomiting.vulnerable
+            else "no outbreak context"
+        )
+        reasons.append(f"Sunken eyes with vomiting, suspected cholera ({context})")
 
     floor = most_urgent(
         TriageLevel.REFER_NOW if hits else None,
         lassa.floor if lassa else None,
         dehydration.floor if dehydration else None,
+        moderate_dehydration.floor if moderate_dehydration else None,
+        oliguria.floor if oliguria else None,
+        sunken_eyes_vomiting.floor if sunken_eyes_vomiting else None,
     )
     return RuleAssessment(
         floor=floor,
         danger_signs=hits,
         lassa=lassa,
         dehydration=dehydration,
+        moderate_dehydration=moderate_dehydration,
+        oliguria=oliguria,
+        sunken_eyes_vomiting=sunken_eyes_vomiting,
         reasons=reasons,
         reminders=reminders,
     )

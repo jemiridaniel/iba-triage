@@ -305,6 +305,35 @@ hackathon requires sole ownership by Daniel Jemiri). See docs/CLINICAL_REVIEW.md
 Uncomment this section once docs/CLINICAL_REVIEW.md's sign-off is dated and complete.
 -->
 
+## Clinical review findings — roadmap
+
+Dr. Oluba O. Amos, PharmD, reviewed Ibà's clinical logic on 2026-10-10 (full review:
+docs/review/CLINICAL_REVIEW_completed.pdf and docs/review/clinical-logic-review_completed.pdf,
+as returned; our response is tracked in docs/CLINICAL_REVIEW.md). His safety-critical findings
+were acted on immediately (see git history, 2026-10-10: the Lassa any-state floor and the
+sunken-eyes-plus-vomiting cholera rule). The items below are real gaps he identified that are
+**not yet implemented** — deferred, not rejected:
+
+- **Pre-referral dosing.** NMEP (p.32, 33, 45) gives pre-referral doses for a patient being
+  referred for severe malaria (IM/rectal artesunate, IM artemether, IM quinine) — not yet in
+  `backend/app/rules/dosing.py`. Should be shown only to trained staff, always led with "refer
+  now," never in place of referral.
+- **Vomiting-triggered re-dosing.** NMEP: repeat the AL dose once if vomited within 30 minutes;
+  a second vomit means switch to a parenteral antimalarial and refer. Not yet implemented.
+- **AL dose on Refer within 24h.** Currently `doses_for()` only attaches a dose at Treat &
+  monitor; an RDT-positive patient triaged Refer within 24h gets no dose shown, which can delay
+  starting the ACT by a day.
+- **New intake fields.** Pregnancy status (women 15–49), measured temperature, exposure history
+  (contact/rodents/travel) in Lassa-risk areas, and diarrhoea detail (stool count, vomiting,
+  urine, drinking) are not currently asked. He also recommends asking age first, since it
+  decides which age-band rules apply, before fever duration/RDT/treatment response.
+- **Afebrile Treat & monitor advice.** The 2026-09-28 fix correctly stops fever-specific advice
+  from appearing on afebrile cases, but currently leaves no advice at all in its place. He
+  recommends a dedicated non-fever block (NCDC Plan A: ORS volumes by age, return signs, zinc,
+  cluster reporting to the DSNO).
+
+See docs/CLINICAL_REVIEW.md for the full set of findings, including those already applied.
+
 ## Licence
 
 Apache-2.0. See [LICENSE](LICENSE).

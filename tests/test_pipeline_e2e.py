@@ -206,7 +206,11 @@ def test_lassa_scenario_keeps_model_lassa_item_without_duplicating(tmp_path: Pat
     assert r.differential[0].source == "llm"
 
 
-def test_same_case_outside_outbreak_state_has_no_lassa_rule(tmp_path: Path) -> None:
+def test_same_case_outside_outbreak_state_gets_the_any_state_lassa_floor(tmp_path: Path) -> None:
+    # Lagos has no live signal and no Lassa baseline entry at all. The any-state floor (full
+    # case definition -- "sore throat" -- plus RDT-negative, added 2026-10-10, Dr. Amos's
+    # review) still applies at Refer within 24h and keeps Lassa on the differential, even
+    # though the live/baseline "active outbreak" tiers above it don't apply here.
     deps, _ = make_deps(
         tmp_path,
         {
@@ -217,9 +221,9 @@ def test_same_case_outside_outbreak_state_has_no_lassa_rule(tmp_path: Path) -> N
         },
     )
     r = run_triage(TriageRequest(text=ADULT_TEXT, state="Lagos"), deps)
-    assert not r.lassa_suspected
+    assert r.lassa_suspected
     assert r.triage_level == TriageLevel.REFER_24H
-    assert all("lassa" not in d.condition.lower() for d in r.differential)
+    assert any("lassa" in d.condition.lower() for d in r.differential)
 
 
 # --- scenario 3: uncomplicated RDT-positive malaria -> treat & monitor -------

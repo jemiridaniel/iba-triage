@@ -3,11 +3,19 @@ merging of rule and model advice that says the same thing.
 
 Each rule action carries guideline anchors (doc_id, phrase) that rules_post resolves to the
 exact indexed chunk for citation:
-  WHO IMCI Chart Booklet (2014), fever: "Follow-up in 3 days if fever persists";
+  WHO IMCI Chart Booklet (2014), fever:
     "If fever is present every day for more than 7 days, refer for assessment";
     classification "Malaria test NEGATIVE".
   WHO Guidelines for Malaria, good practice statement: "All cases of suspected malaria should
     have a parasitological test (microscopy or RDT) to confirm the diagnosis."
+
+Clinical review (Dr. Amos, 2026-10-10): the review interval is now 2 days, not the WHO IMCI
+3-day interval, per NMEP ("return if fever persists two days after starting treatment";
+treatment failure is assessed on day 3). `nmep-malaria` is not in the indexed guideline store
+(it is cited by hardcoded page reference elsewhere, e.g. backend/app/rules/dosing.py, verified
+manually against the PDF), so REVIEW_TEXT below cites it inline as plain text rather than a
+resolved chunk ID -- an honest gap, not a fabricated anchor. The return-immediately list is
+also expanded on his recommendation (stiff neck, a non-fading rash, very little urine).
 """
 
 import re
@@ -17,7 +25,6 @@ from backend.app.schemas import ActionItem, Evidence, PatientCase, Reason
 
 Anchor = tuple[str, str]
 
-REVIEW_ANCHOR: Anchor = ("who-imci", "Follow-up in 3 days if fever persists")
 PERSISTENT_FEVER_ANCHOR: Anchor = (
     "who-imci",
     "If fever is present every day for more than 7 days, refer for assessment",
@@ -29,9 +36,11 @@ TEST_FIRST_ANCHOR: Anchor = (
 )
 
 REVIEW_TEXT = (
-    "Review in 3 days if the fever persists. Return immediately if any danger sign appears: "
+    "Review in 2 days if the fever persists (NMEP 4th ed. 2020, p.27 and p.30: treatment "
+    "failure is assessed on day 3). Return immediately if any danger sign appears: "
     "convulsions, unable to drink, vomiting everything, very sleepy or unconscious, bleeding, "
-    "yellow eyes or dark urine."
+    "yellow eyes or dark urine, a stiff neck, a rash that does not fade, or passing very "
+    "little urine."
 )
 NO_ANTIMALARIAL_TEXT = (
     "Do not give antimalarials: the malaria test is negative. Look for another cause of fever."
@@ -55,7 +64,7 @@ def treat_monitor_advice(case: PatientCase) -> list[tuple[str, list[Anchor]]]:
     """
     if case.fever_days == 0:
         return []
-    advice = [(REVIEW_TEXT, [REVIEW_ANCHOR])]
+    advice: list[tuple[str, list[Anchor]]] = [(REVIEW_TEXT, [])]
     if case.rdt_result == "negative":
         advice.append((NO_ANTIMALARIAL_TEXT, [NEGATIVE_TEST_ANCHOR, TEST_FIRST_ANCHOR]))
         advice.append((NEXT_TEST_TEXT, [PERSISTENT_FEVER_ANCHOR]))

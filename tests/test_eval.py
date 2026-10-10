@@ -44,7 +44,11 @@ def test_every_vignette_has_gold_and_rationale() -> None:
         assert set(g["danger_signs"]) <= CODES
         assert g["must_refer"] == (g["triage_level"] != "treat_monitor")
         assert g["top_differential"] and isinstance(g["outbreak_relevant"], bool)
-        assert c["rationale"] and c["clinician_reviewed"] is False and c["synthetic"] is True
+        # 60 of 61 are now clinician-reviewed (Dr. Amos, 2026-10-10); ch-07 (added 2026-09-28)
+        # is not, since it postdates when his review started.
+        expected_reviewed = c["id"] != "ch-07"
+        assert c["rationale"] and c["synthetic"] is True
+        assert c["clinician_reviewed"] is expected_reviewed
         if g["danger_signs"]:
             assert g["triage_level"] == "refer_now"
 
