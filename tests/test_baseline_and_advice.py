@@ -135,7 +135,10 @@ def test_baseline_for_state_and_season() -> None:
     assert lassa.basis == "baseline" and lassa.status == "endemic" and lassa.in_season is True
     (off,) = [s for s in ENDEMICITY.for_state("Ondo", date(2026, 7, 1)) if "Lassa" in s.disease]
     assert off.in_season is False
-    assert ENDEMICITY.for_state("Kwara", TODAY) == []  # not on any of the three disease lists
+    # Every real Nigerian state is now on at least one of the three disease lists (clinical
+    # review, 2026-10-10: the CSM belt alone is 19 northern states + the FCT, plus 7 southern
+    # states reported) -- a clearly fictional place is the only reliable "no match" case left.
+    assert ENDEMICITY.for_state("Nowhereland", TODAY) == []
     assert ENDEMICITY.for_state(None, TODAY) == []
 
 
@@ -223,21 +226,39 @@ def test_bayelsa_cholera_now_gets_a_baseline() -> None:
     assert signals[0].report == "NCDC Cholera Situation Report"
 
 
-def test_kano_cholera_no_longer_gets_a_baseline() -> None:
-    # Kano never appears in the cholera report at all; removed entirely (not even reported).
-    assert [s for s in ENDEMICITY.for_state("Kano", TODAY) if s.disease == "Cholera"] == []
-    # Kano is still CSM high_burden -- only its cholera entry was removed.
+def test_kano_cholera_restored_with_evidence_caveat() -> None:
+    # Clinical review, 2026-10-10: Kano is restored to high_burden per the reviewer's full
+    # recommendation, but its qualifying evidence rests on an unconfirmed 2026 press report --
+    # that must be visible on the signal, not silently equal to the other states' evidence.
+    (cholera,) = [s for s in ENDEMICITY.for_state("Kano", TODAY) if s.disease == "Cholera"]
+    assert cholera.tier == "high_burden"
+    assert cholera.evidence == "press_2026_unconfirmed"
+    assert cholera.evidence_note and "custodial" in cholera.evidence_note.lower()
+    # Kano is still CSM high_burden too.
     csm = [s for s in ENDEMICITY.for_state("Kano", TODAY) if "meningitis" in s.disease.lower()]
     assert len(csm) == 1 and csm[0].tier == "high_burden"
 
 
-def test_zamfara_cholera_also_removed() -> None:
-    assert [s for s in ENDEMICITY.for_state("Zamfara", TODAY) if s.disease == "Cholera"] == []
+def test_zamfara_cholera_restored_no_caveat() -> None:
+    # Zamfara has 3 non-2026 NCDC reports (2021, 2023, 2024) -- no evidence caveat needed.
+    (cholera,) = [s for s in ENDEMICITY.for_state("Zamfara", TODAY) if s.disease == "Cholera"]
+    assert cholera.tier == "high_burden"
+    assert cholera.evidence is None
 
 
 def test_cholera_reported_tier_states() -> None:
     (adamawa,) = [s for s in ENDEMICITY.for_state("Adamawa", TODAY) if s.disease == "Cholera"]
     assert adamawa.tier == "reported" and adamawa.confirmed is True
+
+
+@pytest.mark.parametrize("state", ["Bauchi", "Borno"])
+def test_bauchi_and_borno_cholera_confirmed_no_caveat(state: str) -> None:
+    # Both qualify via a 2026 report like Kano does, but a primary document (UNICEF Nigeria
+    # Cholera Response Sitrep, Jul-Aug 2026) was independently found and checked for both --
+    # unlike Kano, they carry no evidence caveat.
+    (cholera,) = [s for s in ENDEMICITY.for_state(state, TODAY) if s.disease == "Cholera"]
+    assert cholera.tier == "high_burden"
+    assert cholera.evidence is None
 
 
 def test_baseline_carries_report_source_and_date() -> None:

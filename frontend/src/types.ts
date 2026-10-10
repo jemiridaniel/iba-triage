@@ -50,6 +50,11 @@ export interface OutbreakSignal {
   report?: string | null; // which NCDC situation report named this state
   epi_week?: string | null;
   page?: number | null;
+  // Baseline only: set when this state's tier rests on a 2026 press report rather than a
+  // primary NCDC/UN document. The state keeps its tier; this just makes the weaker
+  // provenance visible instead of treating it as equal to the other states' evidence.
+  evidence?: "press_2026_unconfirmed" | null;
+  evidence_note?: string | null;
 }
 
 export interface OutbreakContext {

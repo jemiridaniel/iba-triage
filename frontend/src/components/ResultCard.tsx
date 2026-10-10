@@ -224,6 +224,14 @@ function BaselineEntry({ s, index, onOpen }: { s: OutbreakSignal; index: Map<str
       {s.confirmed === false && (
         <span className="ml-1 font-semibold text-amber-800">(not independently confirmed)</span>
       )}
+      {s.evidence === "press_2026_unconfirmed" && (
+        <span
+          className="ml-1 cursor-help font-semibold text-amber-800 underline decoration-dotted"
+          title={s.evidence_note || "Qualifies via a 2026 press report; not yet confirmed against a primary NCDC/UN document."}
+        >
+          (2026 reports, primary source pending)
+        </span>
+      )}
       {source && (
         <span className="text-slate-500">
           {" "}
@@ -470,8 +478,10 @@ function outbreakSourceLabel(s: OutbreakSignal): string {
     return `live report, ${s.report_date}`;
   }
   const parts = [s.report, s.epi_week, s.page ? `p.${s.page}` : null].filter(Boolean);
-  const source = parts.length ? parts.join(", ") : "Ibà baseline";
-  return s.recency === "older" ? `${source} (older surveillance)` : source;
+  let source = parts.length ? parts.join(", ") : "Ibà baseline";
+  if (s.recency === "older") source += " (older surveillance)";
+  if (s.evidence === "press_2026_unconfirmed") source += " (2026 reports, primary source pending)";
+  return source;
 }
 
 /** The printed referral form: A4, monochrome, one page where possible. Built from the

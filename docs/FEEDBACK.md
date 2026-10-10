@@ -35,6 +35,7 @@ Raw responses are saved in [tests/fixtures/nemotron_responses.json](../tests/fix
 | T3 | Tavily | National sitreps yield signals for other states than the patient's | Low (rules filter by state; prompt and UI now group them) |
 | D1 | Onboarding | Hackathon tenants get AI Studio, not the general Nebius AI Cloud (Compute/IAM) needed for Serverless Endpoints | **High**: blocked the encouraged deploy path |
 | F13 | Nemotron / reasoning | Showing the model a pre-computed deterministic answer in its own context measurably suppresses independent reasoning, even with an explicit "this is only a floor" instruction | **High**: a safety backstop that becomes a ceiling defeats the point of having both a rules layer and a reasoning layer |
+| F14 | Nemotron / reasoning | A global prompt fix that helps the strongest model can hurt the smallest one: removing F13's floor raised under-triage for the smallest config while lowering it for the two larger ones | **High** for multi-model routing: safety fixes need per-model validation, not just one pass/fail number |
 
 ---
 
@@ -373,6 +374,67 @@ output — never as context the model reasons from. "You may go above this numbe
 practice, as an invitation to just say the number — and, per the confound-free cases above,
 the effect isn't limited to the exact number shown; it appears to generalise into less
 disciplined reasoning on adjacent judgement calls too.
+
+## F14. The same floor removal cost a smaller model more than it cost the larger ones
+
+**Observed.** F13's fix (drop `triage_floor` from the reasoning prompt) was applied once,
+globally, across all three configs we eval. We re-ran all 61 vignettes on every config with
+live outbreak search:
+
+| Config | Model (reasoning step) | Under-triage before | Under-triage after | Over-triage before | Over-triage after |
+|---|---|---|---|---|---|
+| fast-only | Nemotron 3 Nano (smallest) | 4.9% | **8.2%** | 27.9% | 4.9% |
+| reason-only | Nemotron 3 Super | 3.3% | **1.6%** | 27.9% | 1.6% |
+| routed | Super (routed to reasoning) | 3.3% | **3.3%** | 27.9% | 0.0% |
+
+Over-triage fell for every config (expected: F13's over-cautious "an outbreak is active here"
+reasoning pattern went away everywhere). But under-triage, the headline safety number, **rose**
+for the smallest model while it fell for both larger ones. The two Lassa any-state-floor cases
+that F13's fix was aimed at (`la-05`, `la-09`) are a clean before/after on the same prompt
+change across configs:
+
+- **fast-only**, after the fix, still stops one tier short on both:
+  > la-05: "Patient has fever for 5 days, sore throat, body weakness, negative RDT, no
+  > response to antimalarial; no danger signs identified. Suspected Lassa fever per clinical
+  > screening criteria; resides in Lagos where cholera is endemic with peak season. Requires
+  > isolation, assessment, and laboratory testing." → **Refer within 24h** (gold: Refer now)
+  >
+  > la-09: "Patient has fever 5 days, negative RDT, no response to antimalarials, generalized
+  > body weakness; suspected Lassa Fever with live outbreak signal in multiple states; no
+  > danger signs; requires evaluation, isolation, and possible referral to treatment centre
+  > within 24 hours." → **Refer within 24h** (gold: Refer now)
+- **reason-only and routed**, same prompt, same cases, reach the correct level independently:
+  > routed la-05: "Suspected Lassa fever based on fever >48hrs, sore throat, body weakness,
+  > and lack of response to antimalarial; guidelines advise immediate isolation and referral
+  > to a treatment centre." → **Refer now**
+  >
+  > routed la-09: "Patient presents with fever >48hrs, generalized body weakness, and no
+  > response to antimalarial, raising suspicion for Lassa fever per guidelines; suspected VHF
+  > requires isolation and urgent referral to treatment centre." → **Refer now**
+
+Both models read the *same* clinical facts (fever duration, symptom list, treatment
+non-response) and write a similar-sounding rationale ending in the *wrong* conclusion for
+fast-only specifically. The gap isn't in what the model notices -- it's in the last inferential
+step from "meets the NCDC case definition for a VHF" to "that means refer now, not within
+24h," which the smaller model doesn't reliably complete without an external floor to lean on.
+
+**Why it matters.** The floor wasn't *only* causing the anchoring problem in F13 -- for the
+smallest model, it was also doing real compensating work, quietly papering over a reasoning
+gap the model has on its own. Removing it fixed the anchoring (good) and removed the crutch
+(bad, for this one model) in the same change. A single global prompt change can move the same
+safety metric in opposite directions across models of different capability, even when the
+*mechanical* floor-enforcement behaviour (`apply_floor()`) is byte-identical across all three.
+
+**Decision.** Not fixed. fast-only is not the demo/default config (`routed`, using the
+stronger model for reasoning, is), and patching the prompt specifically for the weaker model
+would reintroduce exactly the anchoring risk F13 removed, just scoped differently. Recorded
+here rather than silently left as a regression.
+
+**Suggestion.** If a product routes between model sizes, re-validate safety-critical prompt
+changes per model, not once globally -- a fix that's strictly better for your strongest model
+can be net-negative for your cheapest one. Where a smaller/faster model is kept for cost
+reasons, measure whether it depends on scaffolding (a floor, a hint, an exemplar) that a
+larger model doesn't need, before removing that scaffolding for everyone.
 
 ---
 

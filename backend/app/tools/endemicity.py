@@ -48,6 +48,10 @@ class EndemicState:
     name: str
     confirmed: bool = True  # False = carried over from an earlier list; this report doesn't
     # confirm or rule it out (see data/endemicity.yaml's Lassa/Ebonyi entry for why).
+    # Set (e.g. "press_2026_unconfirmed") when this state's tier rests on evidence weaker than
+    # a dated NCDC/primary document -- see data/endemicity.yaml's cholera entry for why.
+    evidence: str | None = None
+    evidence_note: str | None = None
 
 
 def _parse_states(raw: object) -> tuple[EndemicState, ...]:
@@ -56,7 +60,14 @@ def _parse_states(raw: object) -> tuple[EndemicState, ...]:
         if isinstance(item, str):
             out.append(EndemicState(item))
         else:
-            out.append(EndemicState(item["state"], confirmed=bool(item.get("confirmed", True))))
+            out.append(
+                EndemicState(
+                    item["state"],
+                    confirmed=bool(item.get("confirmed", True)),
+                    evidence=item.get("evidence"),
+                    evidence_note=item.get("evidence_note"),
+                )
+            )
     return tuple(out)
 
 
@@ -144,6 +155,8 @@ class Endemicity:
                         page=e.page,
                         report_date=e.report_date,
                         recency=_recency(e.report_date, today),
+                        evidence=est.evidence,
+                        evidence_note=est.evidence_note,
                     )
                 )
         return out

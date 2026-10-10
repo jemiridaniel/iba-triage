@@ -11,10 +11,10 @@
 
 | Config (outbreak) | n | Danger-sign recall | **Under-triage** | Over-triage | Exact triage | Top-3 dx hit | Citation validity | p50 / p95 latency | Cost / case |
 |---|---|---|---|---|---|---|---|---|---|
-| fast-only (live) | 61 | 96.7% (30 signs) | **8.2%** | 4.9% | 86.9% | 100.0% | 100.0% (207) | 37.4 s / 59.4 s | $0.0028 |
-| reason-only (live) | 61 | 100.0% (30 signs) | **1.6%** | 1.6% | 96.7% | 98.4% | 100.0% (242) | 31.0 s / 46.3 s | $0.00752 |
+| fast-only (live) | 61 | 96.7% (30 signs) | **6.6%** | 6.6% | 86.9% | 100.0% | 100.0% (206) | 39.4 s / 58.8 s | $0.00286 |
+| reason-only (live) | 61 | 100.0% (30 signs) | **1.6%** | 3.3% | 95.1% | 100.0% | 100.0% (244) | 31.0 s / 57.2 s | $0.00774 |
 | routed (case) | 10 | 100.0% (4 signs) | **0.0%** | 0.0% | 100.0% | 100.0% | 100.0% (44) | 30.2 s / 69.9 s | $0.00706 |
-| routed (live) | 61 | 96.7% (30 signs) | **3.3%** | 0.0% | 96.7% | 100.0% | 100.0% (261) | 31.3 s / 47.0 s | $0.00746 |
+| routed (live) | 61 | 96.7% (30 signs) | **3.3%** | 0.0% | 96.7% | 98.4% | 100.0% (272) | 32.3 s / 47.9 s | $0.0077 |
 | routed (off) | 10 | 100.0% (1 signs) | **0.0%** | 10.0% | 90.0% | 100.0% | 100.0% (44) | 27.1 s / 35.1 s | $0.00728 |
 
 - **Under-triage** (predicted less urgent than gold) is the headline safety metric.
@@ -25,13 +25,12 @@
 
 - **la-05** (suspected_lassa): gold Refer now, got Refer within 24h. Missed danger signs: none. Differential: Lassa fever (suspected), Cholera, Other viral febrile illness (e.g., influenza, COVID-19). Model rationale: "Patient has fever for 5 days, sore throat, body weakness, negative RDT, no response to antimalarial; no danger signs identified. Suspected Lassa fever per clinical screening criteria; resides in Lagos where cholera is en"
 - **la-09** (suspected_lassa): gold Refer now, got Refer within 24h. Missed danger signs: none. Differential: Lassa Fever, Cerebrospinal Meningitis, Typhoid Fever. Model rationale: "Patient has fever 5 days, negative RDT, no response to antimalarials, generalized body weakness; suspected Lassa Fever with live outbreak signal in multiple states; no danger signs; requires evaluation, isolation, and po"
-- **ch-02** (cholera_awd): gold Refer within 24h, got Treat & monitor. Missed danger signs: none. Differential: Cholera, Acute watery diarrhoea (non-cholera gastroenteritis), Lassa fever. Model rationale: "Patient has no danger signs; presentation consistent with acute watery diarrhoea suggestive of cholera; no severe dehydration evident; Lassa fever considered due to active outbreak in Bauchi but atypical presentation; ma"
-- **mn-01** (suspected_meningitis): gold Refer now, got Refer within 24h. Missed danger signs: none. Differential: Cerebrospinal Meningitis (CSM), Malaria. Model rationale: "Patient presents with fever, severe headache, neck stiffness and vomiting; Kano state is high-burden for cerebrospinal meningitis (CSM) per baseline endemic data. No danger signs observed, but clinical suspicion of menin"
 - **pd-03** (paediatric_danger_signs): gold Refer now, got Refer within 24h. Missed danger signs: lethargy_or_unconsciousness. Differential: Lassa Fever, Malaria (unspecified), Acute Viral Illness (e.g., influenza-like illness). Model rationale: "Child has no danger signs but resides in Enugu state with an active Lassa fever outbreak; referral within 24 hours is needed to rule out Lassa fever and confirm malaria."
+- **mn-01** (suspected_meningitis): gold Refer now, got Refer within 24h. Missed danger signs: none. Differential: Cerebrospinal Meningitis (CSM), Malaria, Typhoid fever (enteric fever). Model rationale: "Patient aged 20 years with 1 day fever, severe headache, neck stiffness, and vomiting. CSM is high-burden in Kano during peak season; presentation matches CSM case definition. No danger signs per IMCI list, but urgent re"
 
 ### Under-triaged cases: reason-only (live)
 
-- **ch-02** (cholera_awd): gold Refer within 24h, got Treat & monitor. Missed danger signs: none. Differential: Cholera (acute watery diarrhoea), Lassa fever, Other infectious diarrhoea (e.g., ETEC, viral). Model rationale: "Patient shows signs of some dehydration (thirsty, skin pinch slow) but no danger signs; can be managed with ORS and close monitoring at PHC. Lassa fever less likely without fever or bleeding, but outbreak in Bauchi warra"
+- **ch-02** (cholera_awd): gold Refer within 24h, got Treat & monitor. Missed danger signs: none. Differential: Cholera, Acute watery diarrhea (non-cholera), Lassa fever. Model rationale: "Patient shows moderate dehydration signs (skin pinch returns slowly, drinks eagerly) with profuse watery stools, consistent with cholera in an endemic area; no danger signs present, so outpatient management with ORS and "
 
 ### Under-triaged cases: routed (case)
 
@@ -39,8 +38,8 @@ None.
 
 ### Under-triaged cases: routed (live)
 
-- **ch-02** (cholera_awd): gold Refer within 24h, got Treat & monitor. Missed danger signs: none. Differential: Cholera, Lassa fever, Other acute watery diarrhea (e.g., viral gastroenteritis). Model rationale: "No danger signs present; patient shows signs of thirst and eager drinking indicating possible dehydration but no severe dehydration or hypotension; manageable at PHC with ORS and close monitoring, with referral if deteri"
 - **pd-03** (paediatric_danger_signs): gold Refer now, got Treat & monitor. Missed danger signs: lethargy_or_unconsciousness. Differential: Lassa fever, Malaria, Bacterial infection. Model rationale: "No danger signs identified; fever duration <3 days; manage at PHC with follow-up and malaria testing."
+- **ch-02** (cholera_awd): gold Refer within 24h, got Treat & monitor. Missed danger signs: none. Differential: Cholera, Lassa fever, Acute gastroenteritis (non-cholera). Model rationale: "No danger signs present; patient is able to drink eagerly, indicating moderate dehydration that can be managed with oral rehydration and close monitoring at the PHC."
 
 ### Under-triaged cases: routed (off)
 
@@ -62,18 +61,18 @@ The 'with' arm is the **real Tavily search** over trusted public-health domains,
 
 | Config (outbreak) | Cases | Pairs | Supported | Partial | Unsupported |
 |---|---|---|---|---|---|
-| fast-only (live) | 13 | 58 | 81.0% | 3.4% | 15.5% |
-| reason-only (live) | 13 | 64 | 95.3% | 4.7% | 0.0% |
-| routed (live) | 13 | 70 | 87.1% | 2.9% | 8.6% |
+| fast-only (live) | 13 | 59 | 79.7% | 3.4% | 16.9% |
+| reason-only (live) | 13 | 63 | 93.7% | 4.8% | 1.6% |
+| routed (live) | 13 | 69 | 89.9% | 2.9% | 7.2% |
 - unsupported: `who-malaria:0233` for "Uncomplicated malaria: Definition of uncomplicated malaria": The passage discusses complications requiring parenteral treatment, antipyretics, anti-emetics, and seizure management, but does not define uncomplicated malaria.
 - partial: `who-imci:0027` for "Viral febrile illness: Other cause of fever management": The passage mentions providing treatment for 'any other cause of fever other than malaria' which partially supports managing viral febrile illness as an other cause, but it does not specifically address viral etiology or detail its management.
-- unsupported: `ncdc-cholera:0014` for "Refer the patient urgently to a cholera treatment centre or hospital for severe dehydration and cholera management": The passage provides case definitions and referral actions for acute watery diarrhoea and cholera but does not mention urgent referral specifically for severe dehydration or cholera management.
+- unsupported: `ncdc-cholera:0014` for "Institute infection prevention precautions and report to LGA/State surveillance": The passage discusses surveillance, reporting procedures, and contact information for disease notification but does not mention instituting infection prevention precautions.
+- unsupported: `who-imci:0004` for "Keep the patient in a separate holding area and institute infection prevention measures": The passage discusses dehydration classifications and treatments but contains no mention of isolating patients or implementing infection prevention measures.
 - partial: `who-imci:0037` for "Advise patient to return if fever persists beyond 3 days or develops any danger sign": The passage advises returning for follow-up if fever persists after 3 days and includes immediate return for danger signs like inability to feed or becoming sicker, which partially supports the claim.
 - partial: `who-imci:0027` for "Advise the patient to return if fever persists beyond 3 days or if any danger sign develops": The passage advises returning in 3 days if fever persists due to malaria, but does not mention returning for any danger sign developing.
-- partial: `who-imci:0004` for "Give ORS and encourage breastfeeding if the child is able to drink": The passage advises continuing breastfeeding and giving ORS in certain dehydration cases, but does not explicitly state to give ORS and encourage breastfeeding specifically 'if the child is able to drink'.
-- judge_error: `ncdc-cholera:0014` for "Severe malaria: Inability to drink is listed as a danger sign indicating severe illness": LLMParseError
-- unsupported: `ncdc-cholera:0030` for "Administer oral rehydration solution (ORS) while arranging transfer": The passage describes assessment and treatment plans for dehydration levels but does not mention administering ORS while arranging transfer.
 - unsupported: `who-imci:0005` for "Severe malaria: Vomiting everything is a general danger sign per IMCI guidelines": The passage lists general danger signs such as inability to drink/breastfeed, vomiting everything, convulsions, lethargy/unconsciousness, but does not explicitly state that 'vomiting everything is a general danger sign per IMCI guidelines' in direct support of the claim.
+- unsupported: `who-malaria:0291` for "Monitor blood glucose and hydration status": The passage discusses monitoring fluid balance, biochemical tests, and other assessments in severe malaria but does not mention monitoring blood glucose or hydration status.
+- unsupported: `who-malaria:0302` for "Refer patient urgently to hospital": The passage discusses pre-referral treatment recommendations for suspected severe malaria but does not explicitly recommend urgent hospital referral.
 
 ## Grounding
 

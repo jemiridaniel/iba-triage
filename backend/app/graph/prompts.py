@@ -170,6 +170,11 @@ def _baseline_line(s: OutbreakSignal) -> str:
         line += " -- currently its usual peak season"
     if not s.confirmed:
         line += " -- NOT independently confirmed by this report (carried over; not ruled out)"
+    if s.evidence == "press_2026_unconfirmed":
+        line += (
+            " -- 2026 reports, primary source pending (do not treat as equal to a dated "
+            "NCDC situation report)"
+        )
     if s.citation:
         line += f" [{s.citation}]"
     return line

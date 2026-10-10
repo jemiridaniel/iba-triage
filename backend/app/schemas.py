@@ -127,6 +127,13 @@ class OutbreakSignal(BaseModel):
     report: str | None = None
     epi_week: str | None = None
     page: int | None = None
+    # Baseline only: set when a high_burden state's qualifying evidence rests on a 2026 press
+    # report rather than a primary NCDC/UN document (clinical review, 2026-10-10). The state
+    # keeps its tier -- we don't downgrade on the strength of our own uncertainty -- but the UI
+    # and reasoning prompt surface this so a health worker sees the provenance is weaker than a
+    # dated NCDC situation report. None once/if confirmed against a primary document.
+    evidence: Literal["press_2026_unconfirmed"] | None = None
+    evidence_note: str | None = None  # names the specific source when `evidence` is set
 
 
 class GuidelineChunk(BaseModel):

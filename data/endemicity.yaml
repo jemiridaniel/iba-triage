@@ -52,32 +52,38 @@ diseases:
     report_date: 2025-04-06 # end of the reporting period (31 Mar - 6 Apr 2025)
     page: 1
     source: >-
-      NCDC Cerebrospinal Meningitis Situation Report, Epi Week 14 2025 (cumulative Epi week
-      40 2024 - 14 2025 season), p.1: "Twenty-four (24) States reported suspected CSM cases".
-      high_burden: our existing 10-state meningitis-belt list (recurring high burden,
-      dry-season north) - all 10 are confirmed in NCDC's 24-state list. reported: the other
-      14 states NCDC's report names, which had >= 1 suspected case reported all season but
-      are not part of the classic belt. This is the newest CSM sitrep NCDC has published as
-      of 2026-09-28 (checked directly against the site's own listing) - CSM reporting on
-      ncdc.gov.ng has not been updated in over a year.
-    peak_months: [12, 1, 2, 3, 4, 5, 6]
+      Clinical review (Dr. Amos, PharmD, 2026-10-10): the NCDC CSM factsheet defines the
+      meningitis belt as all 19 northern states plus the FCT, plus seven southern states with
+      recorded burden (Bayelsa, Cross River, Delta, Ekiti, Ogun, Ondo, Osun) - 26 states + FCT
+      in total, matching the "26 endemic states" NCDC quoted in its 2017 reports. high_burden:
+      the 19 northern states (by zone - NW: Jigawa, Kaduna, Kano, Katsina, Kebbi, Sokoto,
+      Zamfara; NE: Adamawa, Bauchi, Borno, Gombe, Taraba, Yobe; NC: Benue, Kogi, Kwara,
+      Nasarawa, Niger, Plateau) plus the FCT. reported: the seven southern belt states, plus
+      Akwa-Ibom, Anambra, Ebonyi and Oyo, which the reviewer's own evidence table does not
+      place in or out of the belt either way - kept here rather than dropped, since
+      "reported" never escalates on its own. NOTE: the NCDC CSM factsheet that defines this
+      belt is not among our indexed guideline documents (we hold a case-management flowchart
+      and an outbreak quick-reference checklist under the same disease, not the factsheet
+      itself) - `anchor` below is null rather than a resolved citation to the wrong document.
+      Season widened from the previous Dec-June to Oct-June per the reviewer: NCDC counts the
+      season from week 40 (early October).
+    peak_months: [10, 11, 12, 1, 2, 3, 4, 5, 6]
     anchor: null
-    high_burden: [Sokoto, Kebbi, Zamfara, Katsina, Kano, Jigawa, Yobe, Borno, Bauchi, Gombe]
+    high_burden:
+      [Jigawa, Kaduna, Kano, Katsina, Kebbi, Sokoto, Zamfara, Adamawa, Bauchi, Borno, Gombe,
+       Taraba, Yobe, Benue, Kogi, Kwara, Nasarawa, Niger, Plateau, FCT]
     reported:
-      - Adamawa
-      - Akwa-Ibom
-      - Anambra
       - Bayelsa
-      - Benue
-      - Ebonyi
+      - Cross River
+      - Delta
       - Ekiti
-      - FCT
-      - Kaduna
-      - Niger
+      - Ogun
       - Ondo
       - Osun
+      - Akwa-Ibom
+      - Anambra
+      - Ebonyi
       - Oyo
-      - Plateau
 
   cholera:
     disease: Cholera
@@ -87,18 +93,57 @@ diseases:
     report_date: 2025-03-02 # report's own "as of 2nd March 2025"
     page: 6
     source: >-
-      NCDC Cholera Situation Report, Epi Week 9 2025 (3 Feb-2 Mar 2025), state table p.6
-      (cumulative summary p.2): 25 states reported cases since the start of the season.
-      high_burden: the 14 states the table marks "Active" (reported cases in the most
-      recent 3 weeks). reported: the other 11, which reported cases earlier in the season
-      but were not Active as of this report. Replaces the previous list entirely: Zamfara
-      and Kano do not appear anywhere in this report and have been removed. This is the
-      newest cholera sitrep NCDC has published as of 2026-09-28 (checked directly against
-      the site's own listing) - cholera reporting on ncdc.gov.ng has not been updated in
-      over a year.
-    peak_months: [6, 7, 8, 9, 10]
+      Clinical review (Dr. Amos, PharmD, 2026-10-10): "active in the last 3 weeks" (the
+      previous method) measures a short-term outbreak signal, not endemicity -- NCDC's own
+      endemic definition is confirmed local transmission in 3 of the last 5 years. Replaced
+      with the reviewer's multi-year hotspot method: a state in 3 of {2021, 2023, 2024, 2025
+      NCDC reports, 2026 NCDC-DG/UNICEF/WHO statements} qualifies. high_burden: his full
+      8-state recommendation (Bayelsa, Abia, Zamfara, Katsina, Bauchi, Niger, Kano, Borno),
+      applied as given rather than overridden. Independently checked each state's evidence
+      against its NON-2026 reports alone (2021/2023/2024/2025 only, since the reviewer's own
+      caveat is that the 2026 layer rests on press statements and should be confirmed against
+      primary documents before being hard-coded): Bayelsa, Abia, Zamfara, Katsina and Niger
+      each already have 3 non-2026 reports, no caveat needed. Bauchi and Borno only reach 3
+      by counting 2026 -- but a genuine primary document, not a press report, was found and
+      checked directly: UNICEF Nigeria Cholera Response Situation Report (reporting period
+      July-August 2026, unicef.org/media/183741): Borno is explicitly the epicentre (86% of
+      the 57,030 national suspected cases; 55,452 suspected cases, 308 deaths, across all 23
+      LGAs and 194 wards); Bauchi has an activated Incident Management System with active
+      case search in hotspot LGAs (named specifically, though without a quoted case count).
+      Both treated as confirmed on that basis. Kano reaches 3 only via 2026 and no primary
+      document naming a state-wide 2026 Kano cholera burden was found -- only a press-covered,
+      lab-confirmed outbreak at a single custodial centre (Kurmawa Medium Security Custodial
+      Centre, confirmed 23 Sep 2026, 2 deaths; Channels TV / Voice of Nigeria, citing the
+      Nigerian Correctional Service, not NCDC). Kano therefore keeps its high_burden tier per
+      the reviewer's recommendation -- we do not override his clinical judgement on the
+      strength of our own inability to verify it independently -- but carries
+      evidence: press_2026_unconfirmed so this is visible, not silently equal to the other
+      seven states' evidence. reported: the 10 states the reviewer's method demotes from the
+      previous 14-state list (Akwa-Ibom, Delta, Imo, Kebbi, Kogi, Lagos, Nasarawa, Osun,
+      Rivers, Taraba), plus Benue, Enugu and Oyo (his evidence table does not place these
+      either way; kept rather than dropped, since reported never escalates on its own), plus
+      Cross River, Ebonyi and Jigawa from his recurrent/single-report evidence tiers. His
+      four-tier evidence (hotspot/recurrent/single-report/watch) is collapsed into our
+      two-tier schema (high_burden/reported) -- see README.
+    peak_months: [5, 6, 7, 8, 9, 10]
     anchor: null
     high_burden:
-      [Abia, Akwa-Ibom, Bauchi, Bayelsa, Borno, Delta, Imo, Kebbi, Kogi, Lagos, Nasarawa, Osun, Rivers, Taraba]
+      - Bayelsa
+      - Abia
+      - Zamfara
+      - Katsina
+      - Bauchi
+      - Niger
+      - state: Kano
+        evidence: press_2026_unconfirmed
+        evidence_note: >-
+          Qualifies only via a 2026 NCDC-DG press statement (per the reviewer). No primary
+          NCDC or UN document naming a state-wide 2026 Kano cholera burden was found; the
+          only verifiable 2026 fact is a press-covered, lab-confirmed outbreak at one
+          custodial centre (Kurmawa Medium Security Custodial Centre, confirmed 23 Sep 2026,
+          2 deaths; Nigerian Correctional Service, via Channels TV / Voice of Nigeria), not an
+          NCDC situation report.
+      - Borno
     reported:
-      [Adamawa, Benue, Ekiti, Enugu, Gombe, Katsina, Niger, Ondo, Oyo, Sokoto, Yobe]
+      [Adamawa, Benue, Ekiti, Enugu, Gombe, Ondo, Oyo, Sokoto, Yobe, Akwa-Ibom, Delta, Imo,
+       Kebbi, Kogi, Lagos, Nasarawa, Osun, Rivers, Taraba, Cross River, Ebonyi, Jigawa]

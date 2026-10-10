@@ -334,6 +334,40 @@ sunken-eyes-plus-vomiting cholera rule). The items below are real gaps he identi
 
 See docs/CLINICAL_REVIEW.md for the full set of findings, including those already applied.
 
+### Endemicity baseline update (2026-10-13)
+
+Applied his CSM and cholera recommendations to `data/endemicity.yaml` after his final,
+signed-off review resolved two earlier contradictions (whether `data/endemicity.yaml` had
+actually been supplied to him, and whether the Lassa five includes Benue or Ebonyi — both
+now settled: supplied, and Benue).
+
+**CSM**: applied his belt definition in full — all 19 northern states plus the FCT as
+high_burden (up from 10), the 7 southern belt states he named as reported, peak months
+widened to October–June. Four states his own evidence table doesn't place either way
+(Akwa-Ibom, Anambra, Ebonyi, Oyo) were kept in `reported` rather than dropped, since
+`reported` never escalates a triage level on its own — there's no safety cost to keeping an
+unaddressed state informational-only.
+
+**Cholera — evidence bar.** His hotspot method uses four evidence tiers (hotspot, recurrent,
+single-report, watch); our schema has two (`high_burden`, `reported`). We collapsed his four
+into our two rather than adding new tiers, so a state's weight within "reported" isn't
+visible from the tier alone — the full four-tier breakdown is preserved in
+`data/endemicity.yaml`'s `source:` text for anyone who wants it.
+
+His cholera hotspot recommendation (Bayelsa, Abia, Zamfara, Katsina, Bauchi, Niger, Kano,
+Borno) was **applied as given, not overridden** — three of those eight (Bauchi, Kano, Borno)
+only reach his 3-report threshold by counting a 2026 NCDC-DG/UNICEF/WHO press statement, and
+his own caveat is that this layer should be *confirmed against primary documents*, not that
+it's unusable. We independently checked: a genuine primary document (UNICEF Nigeria Cholera
+Response Situation Report, Jul–Aug 2026) confirms Bauchi and Borno directly, so those two
+carry no caveat. No primary document naming a state-wide 2026 Kano cholera burden was found
+— only a press-covered, lab-confirmed outbreak at a single custodial centre, which is a real
+but narrower fact than a state-level NCDC finding. Kano **keeps its high_burden tier** per
+his recommendation; it also carries `evidence: press_2026_unconfirmed` plus a note naming
+the source gap, shown in the UI ("2026 reports, primary source pending") and the reasoning
+prompt. **No state loses high-burden status on the strength of our own uncertainty about its
+newest evidence** — the flag is additive transparency, not a downgrade.
+
 ## Licence
 
 Apache-2.0. See [LICENSE](LICENSE).
