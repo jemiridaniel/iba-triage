@@ -21,6 +21,12 @@ fast      rules      index       fast model  reason    rules        mid
 (think off)                      (think off) (think on)             (think off)
 ```
 
+![Ibà request pipeline: intake (Nemotron 3.5 Lightning) -> rules_pre (deterministic) -> retrieve (Qwen3 embedding + NumPy index) and outbreak (Tavily search + Lightning extraction) running concurrently -> reason (Nemotron 3 Super, reasoning on) -> rules_post (deterministic) -> compose (Nemotron 3 Super). A "Refer now" banner streams after rules_pre at ~1s if a danger sign is found.](docs/gallery/07-architecture.png)
+
+Model, reasoning state and typical latency per step (deterministic rule stages in slate, the
+one tool-plus-model step in amber, everything else in teal) — see
+[docs/gallery/07-architecture.html](docs/gallery/07-architecture.html) for the editable source.
+
 - **intake** normalises English/Pidgin text into a `PatientCase`; if age, fever duration or
   RDT result is missing (and there are no danger signs) it returns up to 2 follow-up
   questions. The client resubmits the same text with `answers` to resume; nothing is stored.

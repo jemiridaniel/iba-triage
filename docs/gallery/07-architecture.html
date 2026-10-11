@@ -1,0 +1,291 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  :root {
+    --teal: #115e59;
+    --teal-light: #0f766e;
+    --slate: #334155;
+    --slate-dark: #1e293b;
+    --amber: #a85b12;
+    --amber-dark: #8a4a0e;
+    --ink: #0f172a;
+    --sub: #475569;
+    --red: #b91c1c;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    width: 1200px; height: 800px;
+    background: #ffffff;
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: var(--ink);
+  }
+  .page { position: relative; width: 1200px; height: 800px; }
+
+  /* ---- header ---- */
+  .brand {
+    position: absolute; left: 60px; top: 42px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .brand .mark { width: 34px; height: 34px; display: block; }
+  .brand .word { font-size: 25px; font-weight: 800; color: var(--teal); letter-spacing: -0.01em; }
+  .title {
+    position: absolute; left: 60px; top: 88px;
+    font-size: 15px; font-weight: 600; color: var(--sub);
+  }
+  .title b { color: var(--ink); }
+
+  .source-tag {
+    position: absolute; right: 60px; top: 48px;
+    font-size: 13px; color: var(--sub); text-align: right; line-height: 1.5;
+  }
+  .source-tag b { color: var(--teal); }
+
+  /* ---- pipeline row ---- */
+  .row {
+    position: absolute; left: 60px; top: 158px; width: 1080px;
+    display: flex; align-items: flex-start;
+  }
+  .stage {
+    width: 120px; min-height: 258px;
+    border-radius: 12px;
+    padding: 12px 10px;
+    display: flex; flex-direction: column; gap: 6px;
+    color: #fff;
+    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
+  }
+  .stage.model { background: linear-gradient(160deg, var(--teal-light), var(--teal)); }
+  .stage.rule  { background: linear-gradient(160deg, #475569, var(--slate-dark)); }
+  .stage.tool  { background: linear-gradient(160deg, #c2730f, var(--amber-dark)); }
+
+  .tag {
+    align-self: flex-start;
+    font-size: 9.5px; font-weight: 800; letter-spacing: 0.05em;
+    background: rgba(255,255,255,0.22);
+    border-radius: 999px; padding: 2px 7px;
+  }
+  .stage-name { font-size: 15px; font-weight: 800; letter-spacing: 0.01em; margin-top: 1px; }
+  .stage-desc { font-size: 10.5px; line-height: 1.32; opacity: 0.92; min-height: 42px; }
+  .stage-model { font-size: 11.5px; font-weight: 700; line-height: 1.3; }
+  .stage-reason { font-size: 10.5px; font-weight: 600; }
+  .stage-reason.on { color: #fde68a; }
+  .stage-reason.off { color: rgba(255,255,255,0.72); }
+  .spacer { flex: 1; }
+  .stage-latency {
+    font-size: 15px; font-weight: 800;
+    border-top: 1px solid rgba(255,255,255,0.28);
+    padding-top: 6px; margin-top: 2px;
+  }
+
+  .arrow {
+    width: 40px; height: 258px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .arrow svg { display: block; }
+
+  /* ---- banner callout ---- */
+  .banner-wrap {
+    position: absolute; left: 60px; top: 442px; width: 1080px;
+  }
+  .banner-line {
+    position: absolute; left: 220px; top: -26px; width: 2px; height: 30px;
+    background: repeating-linear-gradient(to bottom, var(--red) 0 5px, transparent 5px 9px);
+  }
+  .banner {
+    position: absolute; left: 160px; top: 4px;
+    display: flex; align-items: center; gap: 10px;
+    background: #fef2f2; border: 1.5px solid var(--red);
+    border-radius: 10px; padding: 10px 16px;
+    max-width: 480px;
+  }
+  .banner .dot {
+    width: 11px; height: 11px; border-radius: 50%; background: var(--red); flex-shrink: 0;
+  }
+  .banner .text { font-size: 13px; line-height: 1.4; color: #7f1d1d; }
+  .banner .text b { font-size: 14.5px; font-weight: 800; }
+
+  /* ---- concurrency note ---- */
+  .concur {
+    position: absolute; left: 380px; top: 112px; width: 280px;
+    text-align: center; font-size: 10.5px; font-weight: 700; color: var(--sub);
+  }
+  .concur .bracket {
+    height: 14px; border: 1.5px solid #94a3b8; border-bottom: none;
+    border-radius: 6px 6px 0 0; margin-bottom: 3px;
+  }
+
+  /* ---- legend ---- */
+  .legend {
+    position: absolute; left: 60px; top: 558px; width: 1080px;
+    display: flex; gap: 36px; align-items: center;
+    font-size: 13px; color: var(--sub);
+  }
+  .legend .item { display: flex; align-items: center; gap: 9px; }
+  .legend .swatch { width: 18px; height: 18px; border-radius: 5px; }
+  .legend .swatch.model { background: var(--teal); }
+  .legend .swatch.rule { background: var(--slate-dark); }
+  .legend .swatch.tool { background: var(--amber-dark); }
+  .legend b { color: var(--ink); }
+
+  /* ---- footer facts ---- */
+  .facts {
+    position: absolute; left: 60px; top: 610px; width: 1080px;
+    border-top: 1px solid #e2e8f0; padding-top: 18px;
+    display: flex; gap: 0;
+  }
+  .fact { flex: 1; padding-right: 24px; }
+  .fact .k { font-size: 11.5px; font-weight: 800; color: var(--teal); letter-spacing: 0.03em; text-transform: uppercase; }
+  .fact .v { font-size: 13px; color: var(--ink); margin-top: 5px; line-height: 1.45; }
+
+  .footer-note {
+    position: absolute; left: 60px; top: 760px; width: 1080px;
+    font-size: 11.5px; color: #94a3b8;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="brand">
+    <svg class="mark" viewBox="0 0 64 64" role="img" aria-label="Ibà">
+      <rect width="64" height="64" rx="14" fill="#115e59"/>
+      <circle cx="32" cy="11.9" r="4.9" fill="#fff"/>
+      <rect x="27.1" y="20.8" width="9.8" height="21.6" rx="4.9" fill="#fff"/>
+    </svg>
+    <span class="word">Ibà</span>
+  </div>
+  <div class="title">Request pipeline — <b>LangGraph</b>, one patient message in, one triage result out</div>
+  <div class="source-tag">Every model call via <b>Nebius Token Factory</b><br/>NVIDIA Nemotron + Qwen3 embeddings</div>
+
+  <div class="row">
+    <div class="stage model">
+      <span class="tag">MODEL</span>
+      <div class="stage-name">INTAKE</div>
+      <div class="stage-desc">Extracts structured patient case from free text (Pidgin or English)</div>
+      <div class="spacer"></div>
+      <div class="stage-model">Nemotron 3.5<br/>Lightning</div>
+      <div class="stage-reason off">reasoning OFF</div>
+      <div class="stage-latency">~0.7 s</div>
+    </div>
+    <div class="arrow">
+      <svg width="30" height="14" viewBox="0 0 30 14"><path d="M0 7H26M26 7L19 1M26 7L19 13" stroke="#94a3b8" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+
+    <div class="stage rule">
+      <span class="tag">RULE</span>
+      <div class="stage-name">RULES_PRE</div>
+      <div class="stage-desc">Danger signs + Lassa case definition, matched by regex over the worker's own words</div>
+      <div class="spacer"></div>
+      <div class="stage-model">danger_signs.py<br/>deterministic</div>
+      <div class="stage-reason off">no model call</div>
+      <div class="stage-latency">&lt; 50 ms</div>
+    </div>
+    <div class="arrow">
+      <svg width="30" height="14" viewBox="0 0 30 14"><path d="M0 7H26M26 7L19 1M26 7L19 13" stroke="#94a3b8" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+
+    <div class="stage model">
+      <span class="tag">MODEL</span>
+      <div class="stage-name">RETRIEVE</div>
+      <div class="stage-desc">Embeds query, cosine search over the guideline index</div>
+      <div class="spacer"></div>
+      <div class="stage-model">Qwen3-Embedding-8B<br/>+ NumPy index</div>
+      <div class="stage-reason off">embedding call, no completion</div>
+      <div class="stage-latency">~1–2 s</div>
+    </div>
+    <div class="arrow">
+      <svg width="30" height="14" viewBox="0 0 30 14"><path d="M0 7H26M26 7L19 1M26 7L19 13" stroke="#94a3b8" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+
+    <div class="stage tool">
+      <span class="tag">TOOL + MODEL</span>
+      <div class="stage-name">OUTBREAK</div>
+      <div class="stage-desc">Live search (trusted domains), then extracts structured signals from the results</div>
+      <div class="spacer"></div>
+      <div class="stage-model">Tavily search API<br/>+ Nemotron 3.5 Lightning<br/>extraction</div>
+      <div class="stage-reason off">reasoning OFF</div>
+      <div class="stage-latency">~5 s uncached<br/>&lt;1 ms cached</div>
+    </div>
+    <div class="arrow">
+      <svg width="30" height="14" viewBox="0 0 30 14"><path d="M0 7H26M26 7L19 1M26 7L19 13" stroke="#94a3b8" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+
+    <div class="stage model">
+      <span class="tag">MODEL</span>
+      <div class="stage-name">REASON</div>
+      <div class="stage-desc">Differential, triage rationale, cited actions — the one deep-reasoning step</div>
+      <div class="spacer"></div>
+      <div class="stage-model">Nemotron 3<br/>Super</div>
+      <div class="stage-reason on">reasoning ON</div>
+      <div class="stage-latency">~20–30 s</div>
+    </div>
+    <div class="arrow">
+      <svg width="30" height="14" viewBox="0 0 30 14"><path d="M0 7H26M26 7L19 1M26 7L19 13" stroke="#94a3b8" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+
+    <div class="stage rule">
+      <span class="tag">RULE</span>
+      <div class="stage-name">RULES_POST</div>
+      <div class="stage-desc">apply_floor: the model may raise the triage level, never lower it</div>
+      <div class="spacer"></div>
+      <div class="stage-model">danger_signs.py<br/>deterministic</div>
+      <div class="stage-reason off">no model call</div>
+      <div class="stage-latency">&lt; 50 ms</div>
+    </div>
+    <div class="arrow">
+      <svg width="30" height="14" viewBox="0 0 30 14"><path d="M0 7H26M26 7L19 1M26 7L19 13" stroke="#94a3b8" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+
+    <div class="stage model">
+      <span class="tag">MODEL</span>
+      <div class="stage-name">COMPOSE</div>
+      <div class="stage-desc">Plain-language summary and the printable referral note</div>
+      <div class="spacer"></div>
+      <div class="stage-model">Nemotron 3<br/>Super</div>
+      <div class="stage-reason off">reasoning OFF</div>
+      <div class="stage-latency">~1–2 s</div>
+    </div>
+  </div>
+
+  <div class="concur">
+    <div class="bracket"></div>
+    run concurrently, then joined before REASON
+  </div>
+
+  <div class="banner-wrap">
+    <div class="banner-line"></div>
+    <div class="banner">
+      <span class="dot"></span>
+      <span class="text"><b>"Refer now" banner streams at ~1 s</b><br/>as soon as RULES_PRE finds a danger sign — before retrieval, outbreak search or reasoning finish. Later steps can only raise this level, never lower it.</span>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="item"><span class="swatch model"></span><b>Model step</b> — calls Nemotron or Qwen3</div>
+    <div class="item"><span class="swatch rule"></span><b>Deterministic rule</b> — danger_signs.py, no model call</div>
+    <div class="item"><span class="swatch tool"></span><b>Tool call</b> — Tavily, + one extraction call in OUTBREAK</div>
+  </div>
+
+  <div class="facts">
+    <div class="fact">
+      <div class="k">Structured output</div>
+      <div class="v">Every model call returns JSON validated by Pydantic; a parse failure retries once, then fails safe to "refer."</div>
+    </div>
+    <div class="fact">
+      <div class="k">Safety floor</div>
+      <div class="v">Danger signs are rule-detected, pre- and post-model. The LLM can raise the triage level; it can never lower it.</div>
+    </div>
+    <div class="fact">
+      <div class="k">Cost per case</div>
+      <div class="v">~$0.008 routed, full pipeline — logged per step: model, tokens, latency, estimated cost.</div>
+    </div>
+  </div>
+
+  <div class="footer-note">backend/app/graph/pipeline.py · router.py decides the model per step from MODEL_FAST / MODEL_MID / MODEL_REASON env vars, never hard-coded</div>
+
+</div>
+</body>
+</html>
