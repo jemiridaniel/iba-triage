@@ -72,7 +72,7 @@ _PATTERNS: dict[DangerSignCode, list[str]] = {
         r"\bunconscious\w*",
         r"\b(?:un|not\s+)rous(?:e)?able\b",
         r"\b(?:difficult|hard|unable|can(?:no|')?t|can\s+not)\s+(?:to\s+)?(?:wake|rouse|arouse)\w*",
-        r"\bsleep\w*\s+(?:too\s+much|anyhow|all\s+(?:the\s+)?(?:time|day))",
+        r"\bsleep\w*\s+(?:too\s+much|anyhow|all\s+(?:the\s+)?(?:time|day)|sleep\w*)\b",
         r"\bdrows\w*",
         r"\bcoma\w*\b",
         rf"\bunresponsive\b(?!\s+to\s+{_DRUG_CTX})",

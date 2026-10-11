@@ -47,6 +47,10 @@ POSITIVES = [
     (D.VOMITING_EVERYTHING, "persistent vomiting for 2 days"),
     (D.LETHARGY_UNCONSCIOUS, "very lethargic"),
     (D.LETHARGY_UNCONSCIOUS, "e don dey sleep too much"),
+    # Pidgin reduplication ("sleep sleep") is an intensifier idiom for excessive/continuous
+    # sleep, not literal repetition -- pd-03 (eval/vignettes.jsonl) missed this before the
+    # pattern covered the reduplicated form (2026-10-11).
+    (D.LETHARGY_UNCONSCIOUS, "e dey sleep sleep"),
     (D.LETHARGY_UNCONSCIOUS, "difficult to wake"),
     (D.LETHARGY_UNCONSCIOUS, "patient is unconscious"),
     (D.LETHARGY_UNCONSCIOUS, "confused since morning"),
@@ -112,6 +116,14 @@ def test_spec_demo_pidgin_case() -> None:
     assert codes(text) == {D.VOMITING_EVERYTHING, D.LETHARGY_UNCONSCIOUS}
 
 
+def test_pd_03_pidgin_sleep_reduplication() -> None:
+    # eval/vignettes.jsonl pd-03, exact text. Gold: lethargy_or_unconsciousness, refer_now.
+    # The reduplicated "sleep sleep" (Pidgin for excessive/continuous sleep, not literal
+    # repetition) was previously missed by the rule layer (2026-10-11).
+    text = "Pikin 1 year, hot body 2 days, e just dey quiet, e no dey play, e dey sleep sleep"
+    assert codes(text) == {D.LETHARGY_UNCONSCIOUS}
+
+
 def test_multiple_signs() -> None:
     text = "adult, fever 5 days, yellow eyes, dark urine, convulsed once, bleeding from gums"
     assert codes(text) == {D.JAUNDICE, D.DARK_URINE, D.CONVULSIONS, D.BLEEDING}
@@ -144,6 +156,7 @@ NEGATED = [
     "not vomiting everything",
     "without jaundice",
     "e no dey sleep too much",
+    "e no dey sleep sleep",
     "never had fits",
 ]
 

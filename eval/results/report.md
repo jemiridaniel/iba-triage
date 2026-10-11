@@ -11,10 +11,10 @@
 
 | Config (outbreak) | n | Danger-sign recall | **Under-triage** | Over-triage | Exact triage | Top-3 dx hit | Citation validity | p50 / p95 latency | Cost / case |
 |---|---|---|---|---|---|---|---|---|---|
-| fast-only (live) | 61 | 96.7% (30 signs) | **6.6%** | 6.6% | 86.9% | 100.0% | 100.0% (203) | 39.4 s / 58.8 s | $0.00284 |
-| reason-only (live) | 61 | 100.0% (30 signs) | **1.6%** | 3.3% | 95.1% | 100.0% | 100.0% (238) | 30.2 s / 57.2 s | $0.00767 |
+| fast-only (live) | 61 | 100.0% (30 signs) | **4.9%** | 6.6% | 88.5% | 100.0% | 100.0% (205) | 39.6 s / 58.8 s | $0.00285 |
+| reason-only (live) | 61 | 100.0% (30 signs) | **1.6%** | 3.3% | 95.1% | 100.0% | 100.0% (243) | 30.2 s / 57.9 s | $0.00769 |
 | routed (case) | 10 | 100.0% (4 signs) | **0.0%** | 0.0% | 100.0% | 100.0% | 100.0% (44) | 30.2 s / 69.9 s | $0.00706 |
-| routed (live) | 61 | 96.7% (30 signs) | **3.3%** | 0.0% | 96.7% | 100.0% | 100.0% (271) | 32.3 s / 49.1 s | $0.00786 |
+| routed (live) | 61 | 100.0% (30 signs) | **1.6%** | 0.0% | 98.4% | 100.0% | 100.0% (274) | 32.3 s / 49.1 s | $0.00787 |
 | routed (off) | 10 | 100.0% (1 signs) | **0.0%** | 10.0% | 90.0% | 100.0% | 100.0% (44) | 27.1 s / 35.1 s | $0.00728 |
 
 - **Under-triage** (predicted less urgent than gold) is the headline safety metric.
@@ -25,7 +25,6 @@
 
 - **la-05** (suspected_lassa): gold Refer now, got Refer within 24h. Missed danger signs: none. Differential: Lassa fever (suspected), Cholera, Other viral febrile illness (e.g., influenza, COVID-19). Model rationale: "Patient has fever for 5 days, sore throat, body weakness, negative RDT, no response to antimalarial; no danger signs identified. Suspected Lassa fever per clinical screening criteria; resides in Lagos where cholera is en"
 - **la-09** (suspected_lassa): gold Refer now, got Refer within 24h. Missed danger signs: none. Differential: Lassa Fever, Cerebrospinal Meningitis, Typhoid Fever. Model rationale: "Patient has fever 5 days, negative RDT, no response to antimalarials, generalized body weakness; suspected Lassa Fever with live outbreak signal in multiple states; no danger signs; requires evaluation, isolation, and po"
-- **pd-03** (paediatric_danger_signs): gold Refer now, got Refer within 24h. Missed danger signs: lethargy_or_unconsciousness. Differential: Lassa Fever, Malaria (unspecified), Acute Viral Illness (e.g., influenza-like illness). Model rationale: "Child has no danger signs but resides in Enugu state with an active Lassa fever outbreak; referral within 24 hours is needed to rule out Lassa fever and confirm malaria."
 - **mn-01** (suspected_meningitis): gold Refer now, got Refer within 24h. Missed danger signs: none. Differential: Cerebrospinal Meningitis (CSM), Malaria, Typhoid fever (enteric fever). Model rationale: "Patient aged 20 years with 1 day fever, severe headache, neck stiffness, and vomiting. CSM is high-burden in Kano during peak season; presentation matches CSM case definition. No danger signs per IMCI list, but urgent re"
 
 ### Under-triaged cases: reason-only (live)
@@ -38,7 +37,6 @@ None.
 
 ### Under-triaged cases: routed (live)
 
-- **pd-03** (paediatric_danger_signs): gold Refer now, got Treat & monitor. Missed danger signs: lethargy_or_unconsciousness. Differential: Lassa fever, Malaria, Bacterial infection. Model rationale: "No danger signs identified; fever duration <3 days; manage at PHC with follow-up and malaria testing."
 - **ch-02** (cholera_awd): gold Refer within 24h, got Treat & monitor. Missed danger signs: none. Differential: Cholera, Lassa fever, Acute gastroenteritis (non-cholera). Model rationale: "No danger signs present; patient is able to drink eagerly, indicating moderate dehydration that can be managed with oral rehydration and close monitoring at the PHC."
 
 ### Under-triaged cases: routed (off)
@@ -61,9 +59,9 @@ The 'with' arm is the **real Tavily search** over trusted public-health domains,
 
 | Config (outbreak) | Cases | Pairs | Supported | Partial | Unsupported |
 |---|---|---|---|---|---|
-| fast-only (live) | 13 | 57 | 78.9% | 3.5% | 17.5% |
+| fast-only (live) | 13 | 59 | 78.0% | 3.4% | 18.6% |
 | reason-only (live) | 13 | 63 | 93.7% | 4.8% | 1.6% |
-| routed (live) | 13 | 70 | 90.0% | 2.9% | 7.1% |
+| routed (live) | 13 | 72 | 90.3% | 2.8% | 5.6% |
 - unsupported: `who-malaria:0233` for "Uncomplicated malaria: Definition of uncomplicated malaria": The passage discusses complications requiring parenteral treatment, antipyretics, anti-emetics, and seizure management, but does not define uncomplicated malaria.
 - partial: `who-imci:0027` for "Viral febrile illness: Other cause of fever management": The passage mentions providing treatment for 'any other cause of fever other than malaria' which partially supports managing viral febrile illness as an other cause, but it does not specifically address viral etiology or detail its management.
 - unsupported: `who-imci:0004` for "Severe persistent diarrhea: IMCI chart classifies persistent diarrhea with yellow zone advising feeding and zinc.": The passage mentions persistent diarrhea in the yellow zone and advises giving zinc, but it does not mention 'severe persistent diarrhea' or classify it as such—only non-severe persistent diarrhea is discussed in the yellow zone.
