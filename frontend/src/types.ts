@@ -50,10 +50,12 @@ export interface OutbreakSignal {
   report?: string | null; // which NCDC situation report named this state
   epi_week?: string | null;
   page?: number | null;
-  // Baseline only: set when this state's tier rests on a 2026 press report rather than a
-  // primary NCDC/UN document. The state keeps its tier; this just makes the weaker
-  // provenance visible instead of treating it as equal to the other states' evidence.
-  evidence?: "press_2026_unconfirmed" | null;
+  // Baseline only: set when this state's qualifying evidence is weaker than the disease's
+  // main cited report. The state keeps its tier; this just makes the gap visible instead of
+  // treating it as equal to the other states' evidence.
+  //   press_2026_unconfirmed - rests on a 2026 press/partner report, not a primary NCDC report.
+  //   report_window_gap - the cited report's count is thin and its window ends before today.
+  evidence?: "press_2026_unconfirmed" | "report_window_gap" | null;
   evidence_note?: string | null;
 }
 

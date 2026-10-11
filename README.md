@@ -368,6 +368,50 @@ the source gap, shown in the UI ("2026 reports, primary source pending") and the
 prompt. **No state loses high-burden status on the strength of our own uncertainty about its
 newest evidence** — the flag is additive transparency, not a downgrade.
 
+### Cholera: anchored on the 2024 NCDC sitrep (2026-10-11)
+
+The paragraph above was written before we actually had Dr. Amos's source documents in hand.
+He then sent two: the **NCDC Cholera Situation Report, Epi Week 22 2024** (primary — dated,
+per-state case counts) and the **National Technical Guidelines for Integrated Disease
+Surveillance and Response (IDSR), 3rd ed. 2019** (case definitions only, no per-state burden
+list). The IDSR guideline is **not ingested** into the retrieval index — it adds no state-level
+data our existing NCDC case-definition documents don't already cover — but it's a credible
+post-hackathon source if IDSR's own case-definition wording is ever needed verbatim; noted here
+rather than silently dropped.
+
+We re-anchored the cholera baseline on the 2024 sitrep directly instead of the previous
+multi-year/2026-statement method:
+
+- **high_burden** is still his eight (Bayelsa, Abia, Zamfara, Katsina, Bauchi, Niger, Kano,
+  Borno) plus **Lagos** (nine total). Seven are now cited directly from the sitrep's own
+  cumulative Epi-week-1–22 case counts (Table 7, p.6): Bayelsa 442, Zamfara 64, Abia 51,
+  Bauchi 46, Katsina 28, Kano 13, Niger 11 — no caveat needed. This **removes** the
+  `press_2026_unconfirmed` flag we'd put on Kano last round (it only needed the 2026 layer
+  before this document was in hand) and **adds** it to **Borno** instead — the sitrep records
+  just 1 cumulative Borno case, too thin to stand alone, so Borno's tier still rests on the
+  2026 UNICEF report, same as before, just now visibly flagged rather than silently equal to
+  the other seven states' primary evidence. **Lagos** is new to the list: also just 1
+  cumulative case in the sitrep, but the report's window ends 2 Jun 2024 and can't evidence
+  Lagos going quiet after that date — the same report separately records a state-level
+  cholera Emergency Operations Centre activated in Lagos (p.7). Lagos carries
+  `evidence: report_window_gap` for this reason, kept high_burden on continuity grounds, not
+  on this report's case count.
+- **peak_months is now all 12.** The sitrep's own monthly table (p.1) shows cumulative cases
+  of 294 (Jan), 291 (Feb), 210 (Mar), 60 (Apr), 27 (May) — a clear January–March peak that
+  matches neither our previous June–October window nor Dr. Amos's suggested May–October.
+  Rather than hard-code a season the primary data itself contradicts, every month is treated
+  as in-season.
+- **Methodology correction**: the very first version of this list (before any clinical review)
+  was built from the sitrep's "Active" column. NCDC's own footnote defines "Active" as cases
+  reported in the **last 3 weeks** — an outbreak-recency signal, not the multi-year endemicity
+  this baseline is meant to capture. Recorded so the mistake isn't repeated.
+- Nothing already in `reported` was deleted, including Benue, Enugu and Oyo, per instruction
+  — Lagos is the only change, moved out of `reported` into `high_burden`.
+- **Open finding, not yet actioned**: the sitrep (Table 7, p.6) also names Edo (1 case), FCT
+  (1), Kwara (2) and Ogun (2) as having reported cholera cases in 2024. None of the four is
+  currently in either tier. Flagged here rather than added unilaterally, since it changes
+  what a health worker sees even though `reported` never escalates on its own.
+
 ## Licence
 
 Apache-2.0. See [LICENSE](LICENSE).

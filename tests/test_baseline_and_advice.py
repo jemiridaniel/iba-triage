@@ -219,28 +219,30 @@ def test_csm_tiers() -> None:
 
 
 def test_bayelsa_cholera_now_gets_a_baseline() -> None:
-    # Bayelsa was 66% of all 2025 cholera cases (NCDC Epi Week 9, 2025) -- Active, high_burden.
+    # Bayelsa accounts for 442 of 882 cumulative suspected cases (50%), NCDC Cholera Situation
+    # Report Epi Week 22 2024, p.6 -- the single largest state burden in the report.
     signals = [s for s in ENDEMICITY.for_state("Bayelsa", TODAY) if s.disease == "Cholera"]
     assert len(signals) == 1
     assert signals[0].tier == "high_burden"
-    assert signals[0].report == "NCDC Cholera Situation Report"
+    assert signals[0].report == "NCDC Cholera Situation Report (Monthly Epidemiological Report 5)"
 
 
-def test_kano_cholera_restored_with_evidence_caveat() -> None:
-    # Clinical review, 2026-10-10: Kano is restored to high_burden per the reviewer's full
-    # recommendation, but its qualifying evidence rests on an unconfirmed 2026 press report --
-    # that must be visible on the signal, not silently equal to the other states' evidence.
+def test_kano_cholera_cited_directly_no_caveat() -> None:
+    # Clinical review follow-up, 2026-10-11: Dr. Amos supplied the actual 2024 NCDC Cholera
+    # Situation Report, which records 13 cumulative cases for Kano (p.6) directly -- this
+    # supersedes the previous round's press_2026_unconfirmed flag, which was only needed
+    # before this primary document was in hand.
     (cholera,) = [s for s in ENDEMICITY.for_state("Kano", TODAY) if s.disease == "Cholera"]
     assert cholera.tier == "high_burden"
-    assert cholera.evidence == "press_2026_unconfirmed"
-    assert cholera.evidence_note and "custodial" in cholera.evidence_note.lower()
+    assert cholera.evidence is None
     # Kano is still CSM high_burden too.
     csm = [s for s in ENDEMICITY.for_state("Kano", TODAY) if "meningitis" in s.disease.lower()]
     assert len(csm) == 1 and csm[0].tier == "high_burden"
 
 
 def test_zamfara_cholera_restored_no_caveat() -> None:
-    # Zamfara has 3 non-2026 NCDC reports (2021, 2023, 2024) -- no evidence caveat needed.
+    # Zamfara has 64 cumulative cases in the 2024 NCDC sitrep (p.6) -- cited directly, no
+    # evidence caveat needed.
     (cholera,) = [s for s in ENDEMICITY.for_state("Zamfara", TODAY) if s.disease == "Cholera"]
     assert cholera.tier == "high_burden"
     assert cholera.evidence is None
@@ -251,14 +253,41 @@ def test_cholera_reported_tier_states() -> None:
     assert adamawa.tier == "reported" and adamawa.confirmed is True
 
 
-@pytest.mark.parametrize("state", ["Bauchi", "Borno"])
-def test_bauchi_and_borno_cholera_confirmed_no_caveat(state: str) -> None:
-    # Both qualify via a 2026 report like Kano does, but a primary document (UNICEF Nigeria
-    # Cholera Response Sitrep, Jul-Aug 2026) was independently found and checked for both --
-    # unlike Kano, they carry no evidence caveat.
-    (cholera,) = [s for s in ENDEMICITY.for_state(state, TODAY) if s.disease == "Cholera"]
+def test_bauchi_cholera_confirmed_no_caveat() -> None:
+    # Bauchi has 46 cumulative cases in the 2024 NCDC sitrep (p.6) -- cited directly.
+    (cholera,) = [s for s in ENDEMICITY.for_state("Bauchi", TODAY) if s.disease == "Cholera"]
     assert cholera.tier == "high_burden"
     assert cholera.evidence is None
+
+
+def test_borno_cholera_has_evidence_caveat() -> None:
+    # Clinical review follow-up, 2026-10-11: the 2024 NCDC sitrep records only 1 cumulative
+    # case for Borno (p.6) -- too thin to stand alone. Borno's high_burden tier instead rests
+    # on the UNICEF 2026 Cholera Response Sitrep, so it now carries the evidence caveat that
+    # Kano previously carried (and no longer needs).
+    (cholera,) = [s for s in ENDEMICITY.for_state("Borno", TODAY) if s.disease == "Cholera"]
+    assert cholera.tier == "high_burden"
+    assert cholera.evidence == "press_2026_unconfirmed"
+    assert cholera.evidence_note and "unicef" in cholera.evidence_note.lower()
+
+
+def test_lagos_cholera_promoted_with_report_window_gap() -> None:
+    # Clinical review follow-up, 2026-10-11: Lagos is added to high_burden (not in the
+    # reviewer's original eight) because the 2024 NCDC sitrep's own count is thin (1 case,
+    # p.6) but its reporting window ends 2 Jun 2024 and so cannot evidence Lagos going quiet
+    # since -- the report separately records an active cholera EOC in Lagos (p.7).
+    (cholera,) = [s for s in ENDEMICITY.for_state("Lagos", TODAY) if s.disease == "Cholera"]
+    assert cholera.tier == "high_burden"
+    assert cholera.evidence == "report_window_gap"
+    assert cholera.evidence_note and "emergency operations centre" in cholera.evidence_note.lower()
+
+
+def test_cholera_in_season_all_year() -> None:
+    # The 2024 sitrep's own monthly table (Jan 294, Feb 291, Mar 210, Apr 60, May 27) shows an
+    # actual Jan-Mar peak that matches neither our previous Jun-Oct window nor the reviewer's
+    # suggested May-Oct -- peak_months is set to all 12 rather than hard-coding a wrong season.
+    (cholera,) = [s for s in ENDEMICITY.for_state("Bayelsa", TODAY) if s.disease == "Cholera"]
+    assert cholera.in_season is True
 
 
 def test_baseline_carries_report_source_and_date() -> None:

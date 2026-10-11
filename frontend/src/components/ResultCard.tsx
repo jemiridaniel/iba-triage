@@ -232,6 +232,14 @@ function BaselineEntry({ s, index, onOpen }: { s: OutbreakSignal; index: Map<str
           (2026 reports, primary source pending)
         </span>
       )}
+      {s.evidence === "report_window_gap" && (
+        <span
+          className="ml-1 cursor-help font-semibold text-amber-800 underline decoration-dotted"
+          title={s.evidence_note || "The cited report's own count here is thin and its window ends before today -- it cannot evidence this state going quiet since."}
+        >
+          (report window ends before today)
+        </span>
+      )}
       {source && (
         <span className="text-slate-500">
           {" "}
@@ -481,6 +489,7 @@ function outbreakSourceLabel(s: OutbreakSignal): string {
   let source = parts.length ? parts.join(", ") : "Ibà baseline";
   if (s.recency === "older") source += " (older surveillance)";
   if (s.evidence === "press_2026_unconfirmed") source += " (2026 reports, primary source pending)";
+  if (s.evidence === "report_window_gap") source += " (report window ends before today)";
   return source;
 }
 

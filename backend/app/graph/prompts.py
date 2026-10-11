@@ -175,6 +175,11 @@ def _baseline_line(s: OutbreakSignal) -> str:
             " -- 2026 reports, primary source pending (do not treat as equal to a dated "
             "NCDC situation report)"
         )
+    if s.evidence == "report_window_gap":
+        line += (
+            " -- cited report's own count is thin and its window ends before today, so it "
+            "cannot evidence this state going quiet since"
+        )
     if s.citation:
         line += f" [{s.citation}]"
     return line

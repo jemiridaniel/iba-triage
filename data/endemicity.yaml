@@ -88,44 +88,60 @@ diseases:
   cholera:
     disease: Cholera
     verified: true
-    report: NCDC Cholera Situation Report
-    epi_week: "Week 9, 2025"
-    report_date: 2025-03-02 # report's own "as of 2nd March 2025"
-    page: 6
+    report: NCDC Cholera Situation Report (Monthly Epidemiological Report 5)
+    epi_week: "Week 22, 2024 (cumulative Epi week 1-22)"
+    report_date: 2024-06-02 # report's own "DATA AS REPORTED AND ACCURATE BY NCDC AS AT MIDNIGHT 2nd JUNE 2024"
+    page: 6 # Table 7: per-state weekly & cumulative case counts for all 30 reporting states
     source: >-
-      Clinical review (Dr. Amos, PharmD, 2026-10-10): "active in the last 3 weeks" (the
-      previous method) measures a short-term outbreak signal, not endemicity -- NCDC's own
-      endemic definition is confirmed local transmission in 3 of the last 5 years. Replaced
-      with the reviewer's multi-year hotspot method: a state in 3 of {2021, 2023, 2024, 2025
-      NCDC reports, 2026 NCDC-DG/UNICEF/WHO statements} qualifies. high_burden: his full
-      8-state recommendation (Bayelsa, Abia, Zamfara, Katsina, Bauchi, Niger, Kano, Borno),
-      applied as given rather than overridden. Independently checked each state's evidence
-      against its NON-2026 reports alone (2021/2023/2024/2025 only, since the reviewer's own
-      caveat is that the 2026 layer rests on press statements and should be confirmed against
-      primary documents before being hard-coded): Bayelsa, Abia, Zamfara, Katsina and Niger
-      each already have 3 non-2026 reports, no caveat needed. Bauchi and Borno only reach 3
-      by counting 2026 -- but a genuine primary document, not a press report, was found and
-      checked directly: UNICEF Nigeria Cholera Response Situation Report (reporting period
-      July-August 2026, unicef.org/media/183741): Borno is explicitly the epicentre (86% of
-      the 57,030 national suspected cases; 55,452 suspected cases, 308 deaths, across all 23
-      LGAs and 194 wards); Bauchi has an activated Incident Management System with active
-      case search in hotspot LGAs (named specifically, though without a quoted case count).
-      Both treated as confirmed on that basis. Kano reaches 3 only via 2026 and no primary
-      document naming a state-wide 2026 Kano cholera burden was found -- only a press-covered,
-      lab-confirmed outbreak at a single custodial centre (Kurmawa Medium Security Custodial
-      Centre, confirmed 23 Sep 2026, 2 deaths; Channels TV / Voice of Nigeria, citing the
-      Nigerian Correctional Service, not NCDC). Kano therefore keeps its high_burden tier per
-      the reviewer's recommendation -- we do not override his clinical judgement on the
-      strength of our own inability to verify it independently -- but carries
-      evidence: press_2026_unconfirmed so this is visible, not silently equal to the other
-      seven states' evidence. reported: the 10 states the reviewer's method demotes from the
-      previous 14-state list (Akwa-Ibom, Delta, Imo, Kebbi, Kogi, Lagos, Nasarawa, Osun,
-      Rivers, Taraba), plus Benue, Enugu and Oyo (his evidence table does not place these
-      either way; kept rather than dropped, since reported never escalates on its own), plus
-      Cross River, Ebonyi and Jigawa from his recurrent/single-report evidence tiers. His
-      four-tier evidence (hotspot/recurrent/single-report/watch) is collapsed into our
-      two-tier schema (high_burden/reported) -- see README.
-    peak_months: [5, 6, 7, 8, 9, 10]
+      Clinical review follow-up (Dr. Amos, PharmD, 2026-10-11): he supplied the actual primary
+      document this round -- the NCDC Cholera Situation Report, Epi Week 22 2024 -- plus the
+      National Technical Guidelines for Integrated Disease Surveillance and Response (IDSR),
+      3rd ed. 2019, which gives the cholera case definition but no per-state burden list and so
+      is not ingested into the retrieval index (noted in the README as a post-hackathon
+      source). This replaces the previous multi-year/2026-statements method below with direct
+      citation of this one dated NCDC report, read page by page (Table 7, p.6, lists cumulative
+      Epi-week-1-22 cases for all 30 reporting states). high_burden: his 8-state
+      recommendation (Bayelsa, Abia, Zamfara, Katsina, Bauchi, Niger, Kano, Borno) plus Lagos
+      (9 total). Seven states are now cited directly from this report's own cumulative case
+      counts, p.6: Bayelsa 442, Zamfara 64, Abia 51, Bauchi 46, Katsina 28, Kano 13, Niger 11 --
+      no evidence caveat needed; this supersedes the previous round's press_2026_unconfirmed
+      flag on Kano, which was only needed before this document was in hand. Borno's cumulative
+      count here is just 1 case (p.6) -- too thin to stand alone -- so it now carries
+      evidence: press_2026_unconfirmed; Borno's high_burden tier instead rests on the UNICEF
+      Nigeria Cholera Response Situation Report (Jul-Aug 2026, unicef.org/media/183741), which
+      names Borno the epicentre (86% of the 57,030 national suspected cases; 55,452 suspected
+      cases, 308 deaths, across all 23 LGAs/194 wards) -- a response-partner report, not a
+      dated NCDC situation report, hence flagged rather than treated as equal to the other
+      seven states' primary evidence. Lagos (not in the reviewer's eight) is added because this
+      report's cumulative count for Lagos is also just 1 case (p.6) and its reporting window
+      ends 2 Jun 2024 -- it cannot evidence Lagos going quiet after that date. The same report
+      separately records a state-level cholera Emergency Operations Centre activated in Lagos
+      (p.7, State Response pillar), consistent with an ongoing response rather than a resolved
+      outbreak. Lagos is kept high_burden on that continuity ground (evidence:
+      report_window_gap), not on this report's own case count. Peak months: Table 3 (p.1) gives
+      actual 2024 monthly cumulative cases -- January 294, February 291, March 210, April 60,
+      May 27 -- a clear Jan-Mar peak that contradicts both our previous Jun-Oct window and the
+      reviewer's suggested May-Oct window. Rather than hard-code a window the primary data
+      itself disproves, peak_months is set to all 12 months. Methodology correction: the
+      original (pre-review) list was built from this report's "Active" column, which NCDC's
+      own footnote (p.6) defines as "reported cases in recent 3 weeks from reporting week" --
+      a short-term outbreak-recency signal, not the multi-year endemicity this baseline is
+      meant to capture; recorded here so the error isn't repeated. reported: everything
+      previously listed is kept, none deleted, per instruction -- including Benue, Enugu and
+      Oyo (the reviewer's evidence table does not place these either way) -- minus Lagos, which
+      moved to high_burden above. OPEN FINDING, not yet actioned: Table 7 (p.6) also names Edo
+      (1 case), FCT (1), Kwara (2) and Ogun (2) as having reported cholera cases in 2024; none
+      of the four is currently in either tier. Flagged for the reviewer/user rather than added
+      unilaterally, since reported's own definition ("states the cited report names") would
+      otherwise call for adding them. Below this line is the superseded multi-year method,
+      kept for history: "active in the last 3 weeks" (the pre-review method) measures a
+      short-term outbreak signal, not endemicity -- NCDC's own endemic definition is confirmed
+      local transmission in 3 of the last 5 years. Replaced with the reviewer's multi-year
+      hotspot method: a state in 3 of {2021, 2023, 2024, 2025 NCDC reports, 2026 NCDC-DG/
+      UNICEF/WHO statements} qualifies. His four-tier evidence (hotspot/recurrent/single-
+      report/watch) was collapsed into our two-tier schema (high_burden/reported) -- see
+      README.
+    peak_months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     anchor: null
     high_burden:
       - Bayelsa
@@ -134,16 +150,25 @@ diseases:
       - Katsina
       - Bauchi
       - Niger
-      - state: Kano
+      - Kano
+      - state: Borno
         evidence: press_2026_unconfirmed
         evidence_note: >-
-          Qualifies only via a 2026 NCDC-DG press statement (per the reviewer). No primary
-          NCDC or UN document naming a state-wide 2026 Kano cholera burden was found; the
-          only verifiable 2026 fact is a press-covered, lab-confirmed outbreak at one
-          custodial centre (Kurmawa Medium Security Custodial Centre, confirmed 23 Sep 2026,
-          2 deaths; Nigerian Correctional Service, via Channels TV / Voice of Nigeria), not an
-          NCDC situation report.
-      - Borno
+          The 2024 NCDC sitrep records only 1 cumulative suspected case for Borno (p.6) --
+          too thin to stand alone. Borno's high_burden tier instead rests on 2026 evidence:
+          the UNICEF Nigeria Cholera Response Situation Report (Jul-Aug 2026,
+          unicef.org/media/183741), which names Borno the epicentre (86% of the 57,030
+          national suspected cases; 55,452 suspected cases, 308 deaths, across all 23
+          LGAs/194 wards) -- a response-partner report, not a dated NCDC situation report.
+      - state: Lagos
+        evidence: report_window_gap
+        evidence_note: >-
+          The 2024 NCDC sitrep records only 1 cumulative case for Lagos (p.6) and its
+          reporting window ends 2 Jun 2024 -- it cannot evidence Lagos going quiet after that
+          date. The same report separately notes a state-level cholera Emergency Operations
+          Centre activated in Lagos (p.7), consistent with an ongoing response rather than a
+          resolved outbreak. Kept high_burden on that continuity ground, not this report's
+          case count.
     reported:
       [Adamawa, Benue, Ekiti, Enugu, Gombe, Ondo, Oyo, Sokoto, Yobe, Akwa-Ibom, Delta, Imo,
-       Kebbi, Kogi, Lagos, Nasarawa, Osun, Rivers, Taraba, Cross River, Ebonyi, Jigawa]
+       Kebbi, Kogi, Nasarawa, Osun, Rivers, Taraba, Cross River, Ebonyi, Jigawa]

@@ -11,10 +11,10 @@
 
 | Config (outbreak) | n | Danger-sign recall | **Under-triage** | Over-triage | Exact triage | Top-3 dx hit | Citation validity | p50 / p95 latency | Cost / case |
 |---|---|---|---|---|---|---|---|---|---|
-| fast-only (live) | 61 | 96.7% (30 signs) | **6.6%** | 6.6% | 86.9% | 100.0% | 100.0% (206) | 39.4 s / 58.8 s | $0.00286 |
-| reason-only (live) | 61 | 100.0% (30 signs) | **1.6%** | 3.3% | 95.1% | 100.0% | 100.0% (244) | 31.0 s / 57.2 s | $0.00774 |
+| fast-only (live) | 61 | 96.7% (30 signs) | **6.6%** | 6.6% | 86.9% | 100.0% | 100.0% (203) | 39.4 s / 58.8 s | $0.00284 |
+| reason-only (live) | 61 | 100.0% (30 signs) | **1.6%** | 3.3% | 95.1% | 100.0% | 100.0% (238) | 30.2 s / 57.2 s | $0.00767 |
 | routed (case) | 10 | 100.0% (4 signs) | **0.0%** | 0.0% | 100.0% | 100.0% | 100.0% (44) | 30.2 s / 69.9 s | $0.00706 |
-| routed (live) | 61 | 96.7% (30 signs) | **3.3%** | 0.0% | 96.7% | 98.4% | 100.0% (272) | 32.3 s / 47.9 s | $0.0077 |
+| routed (live) | 61 | 96.7% (30 signs) | **3.3%** | 0.0% | 96.7% | 100.0% | 100.0% (271) | 32.3 s / 49.1 s | $0.00786 |
 | routed (off) | 10 | 100.0% (1 signs) | **0.0%** | 10.0% | 90.0% | 100.0% | 100.0% (44) | 27.1 s / 35.1 s | $0.00728 |
 
 - **Under-triage** (predicted less urgent than gold) is the headline safety metric.
@@ -61,13 +61,13 @@ The 'with' arm is the **real Tavily search** over trusted public-health domains,
 
 | Config (outbreak) | Cases | Pairs | Supported | Partial | Unsupported |
 |---|---|---|---|---|---|
-| fast-only (live) | 13 | 59 | 79.7% | 3.4% | 16.9% |
+| fast-only (live) | 13 | 57 | 78.9% | 3.5% | 17.5% |
 | reason-only (live) | 13 | 63 | 93.7% | 4.8% | 1.6% |
-| routed (live) | 13 | 69 | 89.9% | 2.9% | 7.2% |
+| routed (live) | 13 | 70 | 90.0% | 2.9% | 7.1% |
 - unsupported: `who-malaria:0233` for "Uncomplicated malaria: Definition of uncomplicated malaria": The passage discusses complications requiring parenteral treatment, antipyretics, anti-emetics, and seizure management, but does not define uncomplicated malaria.
 - partial: `who-imci:0027` for "Viral febrile illness: Other cause of fever management": The passage mentions providing treatment for 'any other cause of fever other than malaria' which partially supports managing viral febrile illness as an other cause, but it does not specifically address viral etiology or detail its management.
-- unsupported: `ncdc-cholera:0014` for "Institute infection prevention precautions and report to LGA/State surveillance": The passage discusses surveillance, reporting procedures, and contact information for disease notification but does not mention instituting infection prevention precautions.
-- unsupported: `who-imci:0004` for "Keep the patient in a separate holding area and institute infection prevention measures": The passage discusses dehydration classifications and treatments but contains no mention of isolating patients or implementing infection prevention measures.
+- unsupported: `who-imci:0004` for "Severe persistent diarrhea: IMCI chart classifies persistent diarrhea with yellow zone advising feeding and zinc.": The passage mentions persistent diarrhea in the yellow zone and advises giving zinc, but it does not mention 'severe persistent diarrhea' or classify it as such—only non-severe persistent diarrhea is discussed in the yellow zone.
+- unsupported: `who-imci:0004` for "Administer oral rehydration solution (ORS) after each loose stool to maintain hydration until diarrhoea ceases": The passage discusses fluid management plans for dehydration severity levels but does not mention administering ORS after each loose stool specifically.
 - partial: `who-imci:0037` for "Advise patient to return if fever persists beyond 3 days or develops any danger sign": The passage advises returning for follow-up if fever persists after 3 days and includes immediate return for danger signs like inability to feed or becoming sicker, which partially supports the claim.
 - partial: `who-imci:0027` for "Advise the patient to return if fever persists beyond 3 days or if any danger sign develops": The passage advises returning in 3 days if fever persists due to malaria, but does not mention returning for any danger sign developing.
 - unsupported: `who-imci:0005` for "Severe malaria: Vomiting everything is a general danger sign per IMCI guidelines": The passage lists general danger signs such as inability to drink/breastfeed, vomiting everything, convulsions, lethargy/unconsciousness, but does not explicitly state that 'vomiting everything is a general danger sign per IMCI guidelines' in direct support of the claim.
